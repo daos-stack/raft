@@ -63,6 +63,10 @@ raft_server_t* raft_new()
     me->election_timeout = 1000;
     raft_randomize_election_timeout((raft_server_t*)me);
     me->log = log_new();
+    if (!me->log) {
+        free(me);
+        return NULL;
+    }
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
     me->current_leader = NULL;
@@ -330,6 +334,7 @@ int raft_recv_appendentries(
     )
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    int err = 0;
 
     if (0 < ae->n_entries)
         __log(me_, node, "recvd appendentries t:%d ci:%d lc:%d pli:%d plt:%d #%d",
@@ -427,14 +432,16 @@ int raft_recv_appendentries(
     /* Pick up remainder in case of mismatch or missing entry */
     for (; i < ae->n_entries; i++)
     {
-        int e = raft_append_entry(me_, &ae->entries[i]);
-        if (-1 == e)
-            goto fail_with_current_idx;
-        else if (RAFT_ERR_SHUTDOWN == e)
+        err = raft_append_entry(me_, &ae->entries[i]);
+        if (RAFT_ERR_SHUTDOWN == err)
         {
             r->success = 0;
             r->first_idx = 0;
             return RAFT_ERR_SHUTDOWN;
+        }
+        else if (0 != err)
+        {
+            goto fail_with_current_idx;
         }
         r->current_idx = ae->prev_log_idx + 1 + i;
     }
@@ -456,7 +463,7 @@ fail_with_current_idx:
 fail:
     r->success = 0;
     r->first_idx = 0;
-    return -1;
+    return err;
 }
 
 int raft_already_voted(raft_server_t* me_)
@@ -644,7 +651,9 @@ int raft_recv_entry(raft_server_t* me_,
           me->current_term, e->id, raft_get_current_idx(me_) + 1);
 
     e->term = me->current_term;
-    raft_append_entry(me_, e);
+    int err = raft_append_entry(me_, e);
+    if (0 != err)
+        return err;
     for (i = 0; i < me->num_nodes; i++)
     {
         if (me->node == me->nodes[i] || !me->nodes[i] ||
@@ -827,10 +836,18 @@ raft_node_t* raft_add_node(raft_server_t* me_, void* udata, int id, int is_self)
             return NULL;
     }
 
+    node = raft_node_new(udata, id);
+    if (!node)
+        return NULL;
     me->num_nodes++;
-    me->nodes = (raft_node_t*)realloc(me->nodes, sizeof(void*) * me->num_nodes);
-    me->nodes[me->num_nodes - 1] = raft_node_new(udata, id);
-    assert(me->nodes[me->num_nodes - 1]);
+    void* p = realloc(me->nodes, sizeof(void*) * me->num_nodes);
+    if (!p) {
+        me->num_nodes--;
+        raft_node_free(node);
+        return NULL;
+    }
+    me->nodes = p;
+    me->nodes[me->num_nodes - 1] = node;
     if (is_self)
         me->node = me->nodes[me->num_nodes - 1];
 
@@ -854,29 +871,20 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
-    raft_node_t* new_array, *new_nodes;
-    new_array = (raft_node_t*)calloc((me->num_nodes - 1), sizeof(void*));
-    new_nodes = new_array;
-
     int i, found = 0;
     for (i = 0; i<me->num_nodes; i++)
     {
         if (me->nodes[i] == node)
         {
             found = 1;
-            continue;
+            break;
         }
-        *new_nodes = me->nodes[i];
-        new_nodes++;
     }
-
     assert(found);
-
+    memmove(&me->nodes[i], &me->nodes[i + 1], sizeof(*me->nodes) * (me->num_nodes - i - 1));
     me->num_nodes--;
-    free(me->nodes);
-    me->nodes = new_array;
 
-    free(node);
+    raft_node_free(node);
 }
 
 int raft_get_nvotes_for_me(raft_server_t* me_)
