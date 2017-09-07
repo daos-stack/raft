@@ -117,7 +117,7 @@ int log_append_entry(log_t* me_, raft_entry_t* c)
     if (me->cb && me->cb->log_offer)
     {
         void* ud = raft_get_udata(me->raft);
-        e = me->cb->log_offer(me->raft, ud, &me->entries[me->back], me->back);
+        e = me->cb->log_offer(me->raft, ud, &me->entries[me->back], me->back + 1);
         raft_offer_log(me->raft, &me->entries[me->back], me->back);
         if (e == RAFT_ERR_SHUTDOWN)
             return e;
@@ -211,7 +211,7 @@ void *log_poll(log_t * me_)
     const void *elem = &me->entries[me->front];
     if (me->cb && me->cb->log_poll)
         me->cb->log_poll(me->raft, raft_get_udata(me->raft),
-                         &me->entries[me->front], me->front);
+                         &me->entries[me->front], me->front + 1);
     me->front++;
     me->count--;
     me->base++;
