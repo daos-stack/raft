@@ -33,6 +33,9 @@ typedef struct
     /* we compact the log, and thus need to increment the Base Log Index */
     int base;
 
+    /* term of the base */
+    int base_term;
+
     raft_entry_t* entries;
 
     /* callbacks */
@@ -75,28 +78,14 @@ static int __ensurecapacity(log_private_t * me)
     return 0;
 }
 
-int log_load_from_snapshot(log_t *me_, int idx, int term)
+void log_load_from_snapshot(log_t *me_, int idx, int term)
 {
     log_private_t* me = (log_private_t*)me_;
 
     log_clear(me_);
 
-    raft_entry_t ety;
-    ety.data.len = 0;
-    ety.id = 1;
-    ety.term = term;
-    ety.type = RAFT_LOGTYPE_SNAPSHOT;
-
-    int e = log_append_entry(me_, &ety);
-    if (e != 0)
-    {
-        assert(0);
-        return e;
-    }
-
-    me->base = idx - 1;
-
-    return 0;
+    me->base = idx;
+    me->base_term = term;
 }
 
 log_t* log_alloc(int initial_size)
@@ -134,6 +123,7 @@ void log_clear(log_t* me_)
     me->back = 0;
     me->front = 0;
     me->base = 0;
+    me->base_term = 0;
 }
 
 /** TODO: rename log_append */
@@ -254,6 +244,7 @@ int log_poll(log_t* me_, int idx)
     while (me->base + 1 <= idx)
     {
         int n = batch_up(me, me->base + 1, idx - (me->base + 1) + 1);
+        unsigned int term = me->entries[subscript(me, me->base + n)].term;
         if (me->cb && me->cb->log_poll)
         {
             int e = me->cb->log_poll(me->raft, raft_get_udata(me->raft),
@@ -265,6 +256,7 @@ int log_poll(log_t* me_, int idx)
         me->front = me->front % me->size;
         me->count -= n;
         me->base += n;
+        me->base_term = term;
     }
 
     return 0;
@@ -309,4 +301,9 @@ int log_get_current_idx(log_t* me_)
 int log_get_base(log_t* me_)
 {
     return ((log_private_t*)me_)->base;
+}
+
+int log_get_base_term(log_t* me_)
+{
+    return ((log_private_t*)me_)->base_term;
 }
