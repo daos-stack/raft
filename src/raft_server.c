@@ -1133,14 +1133,14 @@ void raft_pop_log(raft_server_t* me_, raft_entry_t* entries,
     if (me == NULL || entries == NULL)
         return;
 
-    for (i = 0; i < n_entries; i++) {
-        raft_entry_t *ety = &entries[-i];
+    for (i = n_entries - 1; i >= 0; --i) {
+        raft_entry_t *ety = &entries[i];
 
         if (idx - i <= me->voting_cfg_change_log_idx)
             me->voting_cfg_change_log_idx = -1;
 
         if (!raft_entry_is_cfg_change(ety))
-            return;
+            continue;
 
         int node_id = me->cb.log_get_node_id(me_, raft_get_udata(me_),
                                              ety, idx);

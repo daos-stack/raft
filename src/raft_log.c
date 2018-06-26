@@ -156,8 +156,8 @@ static int subscript(log_private_t* me, int idx)
     return (me->front + (idx - (me->base + 1))) % me->size;
 }
 
-/* Return the maximal number of entries contiguous in me->entries[] from idx up
- * to at most idx + n - 1. */
+/* Return the maximal number of contiguous entries in me->entries[]
+ * starting from and including idx up to at the most n entries. */
 static int batch_up(log_private_t* me, int idx, int n)
 {
     assert(n > 0);
@@ -166,8 +166,8 @@ static int batch_up(log_private_t* me, int idx, int n)
     return (lo <= hi) ?  (hi - lo + 1) : (me->size - lo);
 }
 
-/* Return the maximal number of entries contiguous in me->entries[] from idx
- * down to at least idx - n + 1. */
+/* Return the maximal number of contiguous entries in me->entries[]
+ * starting from and including idx down to at the most n entries. */
 static int batch_down(log_private_t* me, int idx, int n)
 {
     assert(n > 0);
@@ -241,14 +241,14 @@ int log_delete(log_t* me_, int idx)
     log_private_t* me = (log_private_t*)me_;
     int e = 0;
 
-    if (0 == me->count || !has_idx(me, idx))
+    if (!has_idx(me, idx))
         return -1;
 
-    while (me->base + 1 + me->count > idx)
+    while (idx <= me->base + me->count)
     {
-        raft_entry_t *ptr = &me->entries[me->back - 1];
-        int k = batch_down(me, me->base + 1 + me->count - 1,
-                               me->base + 1 + me->count - idx);
+        int k = batch_down(me, me->base + me->count,
+                               me->base + me->count - idx + 1);
+        raft_entry_t *ptr = &me->entries[me->back - 1 - k];
         int batch_size = k;
         if (me->cb && me->cb->log_pop)
             e = me->cb->log_pop(me->raft, raft_get_udata(me->raft),
@@ -271,7 +271,7 @@ int log_poll(log_t* me_, int idx)
     log_private_t* me = (log_private_t*)me_;
     int e = 0;
 
-    if (0 == me->count || !has_idx(me, idx))
+    if (!has_idx(me, idx))
         return -1;
 
     while (me->base + 1 <= idx)
