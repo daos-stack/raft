@@ -54,19 +54,21 @@ static int __ensurecapacity(log_private_t * me, int n)
     if (!temp)
         return RAFT_ERR_NOMEM;
 
-
-    if (me->front + me->count <= me->size)
+    if (0 < me->count)
     {
-        memcpy(&temp[0], &me->entries[me->front],
-               me->count * sizeof(raft_entry_t));
-    }
-    else if (me->count > 0)
-    {
-        int index = me->size - me->front;
-        memcpy(&temp[0], &me->entries[me->front],
-               index * sizeof(raft_entry_t));
-        memcpy(&temp[index], &me->entries[0],
-               (me->count - index) * sizeof(raft_entry_t));
+        int k = me->size - me->front;
+        if (me->count <= k)
+        {
+            memcpy(&temp[0], &me->entries[me->front],
+                   sizeof(raft_entry_t) * me->count);
+        }
+        else
+        {
+            memcpy(&temp[0], &me->entries[me->front],
+                   sizeof(raft_entry_t) * k);
+            memcpy(&temp[k], &me->entries[0],
+                   sizeof(raft_entry_t) * (me->count - k));
+        }
     }
 
     /* clean up old entries */
