@@ -1,6 +1,15 @@
 Import('env')
 env = env.Clone()
 env.AppendUnique(CPPPATH = ['../include'])
-env.Library('raft',
-	    ['raft_server.c', 'raft_server_properties.c', 'raft_node.c',
-	     'raft_log.c'])
+topdir = env.Dir("#").abspath
+builddir = '%s/build/src/rdb/raft/src' % topdir
+env.Command('libraft.a', '', 'make -C src/rdb/raft/ BUILDDIR=%s GCOV_CCFLAGS= static' % builddir)
+env.Command('tests_main', '', 'make -C src/rdb/raft/ BUILDDIR=%s GCOV_CCFLAGS= tests_main' % builddir)
+
+def CleanAction(env, targets, action):
+    if env.GetOption('clean'):
+        env.Execute(action)
+
+env.AddMethod(CleanAction, 'CleanAction')
+
+env.CleanAction('libraft.a', Action(['make -C %s/src/rdb/raft/ BUILDDIR=%s clean' % (topdir, builddir)]))
