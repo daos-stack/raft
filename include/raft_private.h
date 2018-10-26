@@ -92,11 +92,6 @@ int raft_send_appendentries(raft_server_t* me, raft_node_t* node);
 int raft_send_appendentries_all(raft_server_t* me_);
 
 /**
- * Apply entry at lastApplied + 1. Entry becomes 'committed'.
- * @return 1 if entry committed, 0 otherwise */
-int raft_apply_entry(raft_server_t* me_);
-
-/**
  * Appends entry using the current term.
  * Note: we make the assumption that current term is up-to-date
  * @return 0 if unsuccessful */

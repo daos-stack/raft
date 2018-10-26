@@ -383,7 +383,7 @@ void TestRaft_server_wont_apply_entry_if_we_dont_have_entry_to_apply(CuTest* tc)
     raft_set_commit_idx(r, 0);
     raft_set_last_applied_idx(r, 0);
 
-    raft_apply_entry(r);
+    raft_apply(r);
     CuAssertTrue(tc, 0 == raft_get_last_applied_idx(r));
     CuAssertTrue(tc, 0 == raft_get_commit_idx(r));
 }
@@ -397,7 +397,7 @@ void TestRaft_server_wont_apply_entry_if_there_isnt_a_majority(CuTest* tc)
     raft_set_commit_idx(r, 0);
     raft_set_last_applied_idx(r, 0);
 
-    raft_apply_entry(r);
+    raft_apply(r);
     CuAssertTrue(tc, 0 == raft_get_last_applied_idx(r));
     CuAssertTrue(tc, 0 == raft_get_commit_idx(r));
 
@@ -408,7 +408,7 @@ void TestRaft_server_wont_apply_entry_if_there_isnt_a_majority(CuTest* tc)
     ety.data.buf = str;
     ety.data.len = 3;
     raft_append_entry(r, &ety);
-    raft_apply_entry(r);
+    raft_apply(r);
     /* Not allowed to be applied because we haven't confirmed a majority yet */
     CuAssertTrue(tc, 0 == raft_get_last_applied_idx(r));
     CuAssertTrue(tc, 0 == raft_get_commit_idx(r));
@@ -464,7 +464,7 @@ void TestRaft_server_apply_entry_increments_last_applied_idx(CuTest* tc)
     ety.data.len = 3;
     raft_append_entry(r, &ety);
     raft_set_commit_idx(r, 1);
-    raft_apply_entry(r);
+    raft_apply(r);
     CuAssertTrue(tc, 1 == raft_get_last_applied_idx(r));
 }
 
@@ -2485,7 +2485,7 @@ void TestRaft_leader_responds_to_entry_msg_when_entry_is_committed(CuTest * tc)
     CuAssertTrue(tc, 1 == raft_get_log_count(r));
 
     /* trigger response through commit */
-    raft_apply_entry(r);
+    raft_apply(r);
 }
 
 void TestRaft_non_leader_recv_entry_msg_fails(CuTest * tc)
@@ -3095,10 +3095,6 @@ void TestRaft_leader_recv_appendentries_response_do_not_increase_commit_idx_beca
     CuAssertIntEquals(tc, 0, raft_get_commit_idx(r));
     raft_recv_appendentries_response(r, raft_get_node(r, 3), &aer);
     CuAssertIntEquals(tc, 3, raft_get_commit_idx(r));
-    raft_periodic(r, 1);
-    CuAssertIntEquals(tc, 1, raft_get_last_applied_idx(r));
-    raft_periodic(r, 1);
-    CuAssertIntEquals(tc, 2, raft_get_last_applied_idx(r));
     raft_periodic(r, 1);
     CuAssertIntEquals(tc, 3, raft_get_last_applied_idx(r));
 }

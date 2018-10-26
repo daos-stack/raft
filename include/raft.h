@@ -50,16 +50,7 @@ typedef enum {
     RAFT_LOGTYPE_ADD_NODE,
     /**
      * Membership change.
-     * Nodes become demoted when we want to remove them from the cluster.
-     * Demoted nodes can't take part in voting or start elections.
-     * Demoted nodes become inactive, as per raft_node_is_active.
-     */
-    RAFT_LOGTYPE_DEMOTE_NODE,
-    /**
-     * Membership change.
-     * The node is removed from the cluster.
-     * This happens after the node has been demoted.
-     * Removing nodes is a 2 step process: first demote, then remove.
+     * Remove a node from the cluster.
      */
     RAFT_LOGTYPE_REMOVE_NODE,
     /**
@@ -843,7 +834,7 @@ int raft_node_has_sufficient_logs(raft_node_t* me_);
  * @return
  *  0 on success;
  *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
-int raft_apply_all(raft_server_t* me_);
+int raft_apply(raft_server_t* me_);
 
 /** Become leader
  * WARNING: this is a dangerous function call. It could lead to your cluster

@@ -28,6 +28,11 @@
 #define max(a, b) ((a) < (b) ? (b) : (a))
 #endif
 
+/**
+ * Apply entry at lastApplied + 1. Entry becomes 'committed'.
+ * @return 1 if entry committed, 0 otherwise */
+static int raft_apply_entry(raft_server_t* me_);
+
 static void __log(raft_server_t *me_, raft_node_t* node, const char *fmt, ...)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -109,7 +114,6 @@ void raft_clear(raft_server_t* me_)
     me->last_applied_idx = 0;
     me->num_nodes = 0;
     me->node = NULL;
-    me->voting_cfg_change_log_idx = 0;
     log_clear(me->log);
 }
 
@@ -204,12 +208,13 @@ void raft_become_follower(raft_server_t* me_)
 int raft_periodic(raft_server_t* me_, int msec_since_last_period)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    raft_node_t *my_node = raft_get_my_node((void *)me);
 
     me->timeout_elapsed += msec_since_last_period;
 
     /* Only one voting node means it's safe for us to become the leader */
     if (1 == raft_get_num_voting_nodes(me_) &&
-        raft_node_is_voting(raft_get_my_node((void*)me)) &&
+        my_node && raft_node_is_voting(my_node) &&
         !raft_is_leader(me_))
         raft_become_leader(me_);
 
@@ -225,7 +230,7 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
         !raft_snapshot_is_in_progress(me_))
     {
         if (1 < raft_get_num_voting_nodes(me_) &&
-            raft_node_is_voting(raft_get_my_node(me_)))
+            my_node && raft_node_is_voting(my_node))
         {
             int e = raft_election_start(me_);
             if (0 != e)
@@ -233,15 +238,7 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
         }
     }
 
-    if (me->last_applied_idx < raft_get_commit_idx(me_) &&
-        !raft_snapshot_is_in_progress(me_))
-    {
-        int e = raft_apply_entry(me_);
-        if (0 != e)
-            return e;
-    }
-
-    return 0;
+    return raft_apply(me_);
 }
 
 raft_entry_t* raft_get_entry_from_idx(raft_server_t* me_, int etyidx)
@@ -523,12 +520,14 @@ int raft_already_voted(raft_server_t* me_)
 
 static int __should_grant_vote(raft_server_private_t* me, msg_requestvote_t* vr)
 {
+    raft_node_t *my_node = raft_get_my_node((void*)me);
+
     /* TODO: 4.2.3 Raft Dissertation:
      * if a server receives a RequestVote request within the minimum election
      * timeout of hearing from a current leader, it does not update its term or
      * grant its vote */
 
-    if (!raft_node_is_voting(raft_get_my_node((void*)me)))
+    if (my_node && !raft_node_is_voting(my_node))
         return 0;
 
     if (vr->term < raft_get_current_term((void*)me))
@@ -632,12 +631,14 @@ int raft_recv_requestvote_response(raft_server_t* me_,
                                    msg_requestvote_response_t* r)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    raft_node_t *my_node = raft_get_my_node((void*)me);
 
     __log(me_, node, "node responded to requestvote status: %s",
           r->vote_granted == 1 ? "granted" :
           r->vote_granted == 0 ? "not granted" : "unknown");
 
-    if (!raft_is_candidate(me_))
+    if (!my_node || /* This node is not part of the cluster anymore */
+        !raft_is_candidate(me_))
     {
         return 0;
     }
@@ -678,7 +679,7 @@ int raft_recv_requestvote_response(raft_server_t* me_,
             break;
 
         case RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE:
-            if (raft_node_is_voting(raft_get_my_node(me_)) &&
+            if (raft_node_is_voting(my_node) &&
                 me->connected == RAFT_NODE_STATUS_DISCONNECTING)
                 return RAFT_ERR_SHUTDOWN;
             break;
@@ -796,6 +797,7 @@ int raft_recv_entry(raft_server_t* me_,
                     msg_entry_response_t *r)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    int idx = raft_get_current_idx(me_) + 1;
     int i;
 
     if (raft_entry_is_voting_cfg_change(ety))
@@ -813,8 +815,7 @@ int raft_recv_entry(raft_server_t* me_,
     if (!raft_is_leader(me_))
         return RAFT_ERR_NOT_LEADER;
 
-    __log(me_, NULL, "received entry t:%d id: %d idx: %d",
-          me->current_term, ety->id, raft_get_current_idx(me_) + 1);
+    __log(me_, NULL, "received entry t:%d id: %d idx: %d", me->current_term, ety->id, idx);
 
     ety->term = me->current_term;
     int k = 1;
@@ -822,21 +823,34 @@ int raft_recv_entry(raft_server_t* me_,
     if (0 != e)
         return e;
     assert(k == 1);
+
+    /* Node removal entries must be sent to the node being removed. */
+    int nodeid = -1;
+    if (me->cb.log_get_node_id &&
+        ety->type == RAFT_LOGTYPE_REMOVE_NODE)
+        nodeid = me->cb.log_get_node_id(me_, raft_get_udata(me_), ety, idx);
+
     for (i = 0; i < me->num_nodes; i++)
     {
         raft_node_t* node = me->nodes[i];
 
-        if (me->node == node ||
-            !node ||
-            !raft_node_is_active(node) ||
+        if (me->node == node || !node)
+            continue;
+
+        if (raft_node_get_id(node) == nodeid)
+        {
+            raft_send_appendentries(me_, node);
+            continue;
+        }
+
+        if (!raft_node_is_active(node) ||
             !raft_node_is_voting(node))
             continue;
 
         /* Only send new entries.
          * Don't send the entry to peers who are behind, to prevent them from
          * becoming congested. */
-        int next_idx = raft_node_get_next_idx(node);
-        if (next_idx == raft_get_current_idx(me_))
+        if (raft_node_get_next_idx(node) == idx)
             raft_send_appendentries(me_, node);
     }
 
@@ -845,11 +859,11 @@ int raft_recv_entry(raft_server_t* me_,
         raft_set_commit_idx(me_, raft_get_current_idx(me_));
 
     r->id = ety->id;
-    r->idx = raft_get_current_idx(me_);
+    r->idx = idx;
     r->term = me->current_term;
 
     if (raft_entry_is_voting_cfg_change(ety))
-        me->voting_cfg_change_log_idx = raft_get_current_idx(me_);
+        me->voting_cfg_change_log_idx = idx;
 
     return 0;
 }
@@ -881,7 +895,7 @@ int raft_append_entries(raft_server_t* me_, raft_entry_t* entries, int *n)
     return log_append(me->log, entries, n);
 }
 
-int raft_apply_entry(raft_server_t* me_)
+static int raft_apply_entry(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
@@ -916,8 +930,10 @@ int raft_apply_entry(raft_server_t* me_)
     if (!raft_entry_is_cfg_change(ety))
         return 0;
 
+    assert(me->cb.log_get_node_id);
     int node_id = me->cb.log_get_node_id(me_, raft_get_udata(me_), ety, log_idx);
     raft_node_t* node = raft_get_node(me_, node_id);
+    assert(node);
 
     switch (ety->type) {
         case RAFT_LOGTYPE_ADD_NODE:
@@ -931,13 +947,8 @@ int raft_apply_entry(raft_server_t* me_)
         case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
             raft_node_set_addition_committed(node, 1);
             break;
-        case RAFT_LOGTYPE_DEMOTE_NODE:
-            if (node)
-                raft_node_set_voting_committed(node, 0);
-            break;
         case RAFT_LOGTYPE_REMOVE_NODE:
-            if (node)
-                raft_remove_node(me_, node);
+            raft_node_set_addition_committed(node, 0);
             break;
         default:
             break;
@@ -1171,7 +1182,7 @@ int raft_msg_entry_response_committed(raft_server_t* me_,
     return r->idx <= raft_get_commit_idx(me_);
 }
 
-int raft_apply_all(raft_server_t* me_)
+int raft_apply(raft_server_t* me_)
 {
     if (raft_snapshot_is_in_progress(me_))
         return 0;
@@ -1183,13 +1194,27 @@ int raft_apply_all(raft_server_t* me_)
             return e;
     }
 
+    /* Delete all nodes marked for deletion i.e. addition_committed == false */
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    int i = 0;
+    while (i < me->num_nodes)
+    {
+        if (raft_node_is_addition_committed(me->nodes[i]))
+        {
+            i++;
+            continue;
+        }
+        raft_node_free(me->nodes[i]);
+        me->num_nodes--;
+        me->nodes[i] = me->nodes[me->num_nodes];
+    }
+
     return 0;
 }
 
 int raft_entry_is_voting_cfg_change(raft_entry_t* ety)
 {
-    return RAFT_LOGTYPE_ADD_NODE == ety->type ||
-           RAFT_LOGTYPE_DEMOTE_NODE == ety->type;
+    return RAFT_LOGTYPE_ADD_NODE == ety->type;
 }
 
 int raft_entry_is_cfg_change(raft_entry_t* ety)
@@ -1197,7 +1222,6 @@ int raft_entry_is_cfg_change(raft_entry_t* ety)
     return (
         RAFT_LOGTYPE_ADD_NODE == ety->type ||
         RAFT_LOGTYPE_ADD_NONVOTING_NODE == ety->type ||
-        RAFT_LOGTYPE_DEMOTE_NODE == ety->type ||
         RAFT_LOGTYPE_REMOVE_NODE == ety->type);
 }
 
@@ -1227,18 +1251,14 @@ void raft_offer_log(raft_server_t* me_, raft_entry_t* entries,
         switch (ety->type)
         {
             case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
-                if (!is_self)
+                if (node && !raft_node_is_active(node))
                 {
-                    if (node && !raft_node_is_active(node))
-                    {
-                        raft_node_set_active(node, 1);
-                    }
-                    else if (!node)
-                    {
-                        raft_node_t* tmpnode = raft_add_non_voting_node(
-                                                me_, NULL, node_id, is_self);
-                        assert(tmpnode);
-                    }
+                    raft_node_set_active(node, 1);
+                }
+                else if (!node)
+                {
+                    node = raft_add_non_voting_node(me_, NULL, node_id, is_self);
+                    assert(node);
                 }
                 break;
 
@@ -1248,14 +1268,12 @@ void raft_offer_log(raft_server_t* me_, raft_entry_t* entries,
                 assert(raft_node_is_voting(node));
                 break;
 
-            case RAFT_LOGTYPE_DEMOTE_NODE:
-                if (node)
-                    raft_node_set_voting(node, 0);
-                break;
-
             case RAFT_LOGTYPE_REMOVE_NODE:
                 if (node)
+                {
                     raft_node_set_active(node, 0);
+                    raft_node_set_voting(node, 0);
+                }
                 break;
 
             default:
@@ -1285,26 +1303,20 @@ void raft_pop_log(raft_server_t* me_, raft_entry_t* entries,
         int node_id = me->cb.log_get_node_id(me_, raft_get_udata(me_),
                                              ety, idx);
         raft_node_t* node = raft_get_node(me_, node_id);
-        int is_self = node_id == raft_get_nodeid(me_);
+        assert(node);
 
         switch (ety->type)
         {
-            case RAFT_LOGTYPE_DEMOTE_NODE:
-                raft_node_set_voting(node, 1);
-                break;
-
             case RAFT_LOGTYPE_REMOVE_NODE:
+                raft_node_set_voting(node, 1);
                 raft_node_set_active(node, 1);
-                break;
-
-            case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
-                raft_remove_node(me_, node);
-                if (is_self)
-                    assert(0);
                 break;
 
             case RAFT_LOGTYPE_ADD_NODE:
                 raft_node_set_voting(node, 0);
+                break;
+
+            case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
                 break;
 
             default:
@@ -1342,7 +1354,7 @@ int raft_begin_snapshot(raft_server_t *me_, int idx)
         return -1;
 
     /* we need to get all the way to the commit idx */
-    int e = raft_apply_all(me_);
+    int e = raft_apply(me_);
     if (e != 0)
         return e;
 
