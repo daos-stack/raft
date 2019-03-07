@@ -54,14 +54,14 @@ typedef struct {
 
     /* what this node thinks is the node ID of the current leader, or NULL if
      * there isn't a known current leader. */
-    raft_node_t* current_leader;
+    int leader_id;
+
+    /* my node ID */
+    int node_id;
 
     /* callbacks */
     raft_cbs_t cb;
     void* udata;
-
-    /* my node ID */
-    raft_node_t* node;
 
     /* the log which has a voting cfg change, otherwise -1 */
     int voting_cfg_change_log_idx;
