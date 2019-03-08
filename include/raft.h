@@ -732,10 +732,6 @@ int raft_is_leader(raft_server_t* me);
 int raft_is_candidate(raft_server_t* me);
 
 /**
- * @return 1 if node ID matches the server; 0 otherwise */
-int raft_is_self(raft_server_t* me_, raft_node_t* node);
-
-/**
  * @return currently elapsed timeout in milliseconds */
 int raft_get_timeout_elapsed(raft_server_t* me);
 
