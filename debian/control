@@ -8,11 +8,11 @@ Homepage: https://github.com/willemt/raft
 Vcs-Browser: https://github.com/willemt/raft
 Vcs-Git: https://github.com/willemt/raft.git
 
-Package: raft-dev
+Package: libraft-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
-Depends: raft1 (= ${binary:Version}), ${misc:Depends}
+Depends: libraft0 (= ${binary:Version}), ${misc:Depends}
 Description: C implementation of the Raft consensus protocol
  Raft is a consensus algorithm that is designed to be easy to understand.
  It's equivalent to Paxos in fault-tolerance and performance. The difference
@@ -22,7 +22,7 @@ Description: C implementation of the Raft consensus protocol
  This package is needed to compile programs against raft.
  It contains the header files and links needed for compiling.
 
-Package: raft1
+Package: libraft0
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
