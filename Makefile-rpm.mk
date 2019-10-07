@@ -11,7 +11,7 @@ GIT_INFO := $(GIT_NUM_COMMITS).g$(GIT_SHORT)
 BUILD_DEFINES := --define "%relval $(GIT_INFO)"
 RPM_BUILD_OPTIONS := $(BUILD_DEFINES)
 
-$(NAME)-$(VERSION).tar:
-	git archive --format tar --prefix $(NAME)-$(VERSION)/ -o $@ HEAD
-
 include packaging/Makefile_packaging.mk
+
+$(NAME)-$(VERSION).tar.$(SRC_EXT):
+	git archive --format tar --prefix $(NAME)-$(VERSION)/ HEAD | gzip > $@
