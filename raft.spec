@@ -14,11 +14,7 @@ Summary:	C implementation of the Raft Consensus protocol, BSD licensed
 
 License:	BSD-3-Clause
 URL:		https://github.com/daos-stack/%{name}
-%if %{with use_release}
-Source0:	https://github.com/daos-stack/%{name}/releases/download/%{shortcommit0}/%{name}-%{shortcommit0}.tar.bz2
-%else
-Source0:	https://github.com/willemt/%{name}/archive/v%{version}.tar.gz
-%endif
+Source0:	https://github.com/daos-stack/%{name}/releases/download/%{shortcommit0}/%{name}-%{version}.tar.gz
 
 %if 0%{?suse_version} >= 1315
 Group:		Development/Libraries/C and C++

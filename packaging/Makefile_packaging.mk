@@ -80,12 +80,8 @@ DEB_VERS := $(subst rc,~rc,$(VERSION))
 DEB_RVERS := $(subst $(DOT),\$(DOT),$(DEB_VERS))
 DEB_BVERS := $(basename $(subst ~rc,$(DOT)rc,$(DEB_VERS)))
 RELEASE := $(shell rpm $(COMMON_RPM_ARGS) --specfile --qf '%{release}\n' $(SPEC) | sed -n '$(SED_EXPR)')
-ifeq ($(SRPM),)
 SRPM    := _topdir/SRPMS/$(NAME)-$(VERSION)-$(RELEASE)$(DIST).src.rpm
-endif
-ifeq ($(RPMS),)
 RPMS    := $(addsuffix .rpm,$(addprefix _topdir/RPMS/x86_64/,$(shell rpm --specfile $(SPEC))))
-endif
 DEB_TOP := _topdir/BUILD
 DEB_BUILD := $(DEB_TOP)/$(NAME)-$(DEB_VERS)
 DEB_TARBASE := $(DEB_TOP)/$(DEB_NAME)_$(DEB_VERS)
@@ -150,6 +146,14 @@ all: $(TARGETS)
 %.gz: %
 	rm -f $@
 	gzip $<
+
+%.bz2: %
+	rm -f $@
+	bzip2 $<
+
+%.xz: %
+	rm -f $@
+	xz -z $<
 
 _topdir/SOURCES/%: % | _topdir/SOURCES/
 	rm -f $@
@@ -511,6 +515,9 @@ show_makefiles:
 show_calling_makefile:
 	@echo $(CALLING_MAKEFILE)
 
+show_git_metadata:
+	@echo $(GIT_SHA1):$(GIT_SHORT):$(GIT_NUM_COMMITS)
+
 .PHONY: srpm rpms debs deb_detar ls chrootbuild rpmlint FORCE        \
         show_version show_release show_rpms show_source show_sources \
-        show_targets check-env
+        show_targets check-env show_git_metadata
