@@ -165,7 +165,6 @@ ifeq ($(DL_VERSION),)
 DL_VERSION = $(VERSION)
 endif
 
-ifneq ($(dir $(SOURCE)),./)
 $(NAME)-$(DL_VERSION).tar.$(SRC_EXT).asc: $(SPEC) $(CALLING_MAKEFILE)
 	rm -f ./$(NAME)-*.tar.{gz,bz*,xz}.asc
 	curl -f -L -O '$(SOURCE).asc'
@@ -181,7 +180,6 @@ v$(DL_VERSION).tar.$(SRC_EXT): $(SPEC) $(CALLING_MAKEFILE)
 $(DL_VERSION).tar.$(SRC_EXT): $(SPEC) $(CALLING_MAKEFILE)
 	rm -f ./*.tar.{gz,bz*,xz}
 	curl -f -L -O '$(SOURCE)'
-endif
 
 $(DEB_TOP)/%: % | $(DEB_TOP)/
 
