@@ -7,8 +7,8 @@
 %bcond_with use_release
 
 Name:		raft
-Version:	0.5.0
-Release:	5%{?relval}%{?dist}
+Version:	0.6.0
+Release:	1%{?relval}%{?dist}
 
 Summary:	C implementation of the Raft Consensus protocol, BSD licensed
 
@@ -57,7 +57,7 @@ cp -a include/* %{buildroot}/%{_includedir}
 
 
 %changelog
-* Fri May 15 2020 Kenneth Cain <kenneth.c.cainl@intel> -0.5.0-5
+* Fri May 15 2020 Kenneth Cain <kenneth.c.cainl@intel> -0.6.0-1
 - Expose raft_election_start function
 
 * Fri Apr 10 2020 Brian J. Murrell <brian.murrell@intel> -0.5.0-4
