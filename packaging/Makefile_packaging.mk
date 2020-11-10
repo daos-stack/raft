@@ -270,6 +270,8 @@ $(DEB_TOP)/$(DEB_DSC): $(CALLING_MAKEFILE) $(DEB_BUILD).tar.$(SRC_EXT) \
 	cd $(DEB_BUILD); dpkg-buildpackage -S --no-sign --no-check-builddeps
 
 $(SRPM): $(SPEC) $(SOURCES)
+	echo "SOURCES: $(SOURCES)"
+	ls -l $(SOURCES)
 	rpmbuild -bs $(COMMON_RPM_ARGS) $(RPM_BUILD_OPTIONS) $(SPEC)
 
 srpm: $(SRPM)
