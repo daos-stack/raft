@@ -13,4 +13,5 @@ RPM_BUILD_OPTIONS := $(BUILD_DEFINES)
 include packaging/Makefile_packaging.mk
 
 $(NAME)-$(VERSION).tar.gz:
+	set -x; \
 	git archive --format tar --prefix $(NAME)-$(VERSION)/ HEAD | gzip > $@
