@@ -30,7 +30,15 @@ class Libraft(object):
 
         def load(fname):
             gcc = find_executable('gcc')
-            return subprocess.check_output([gcc, "-E", fname])
+            if gcc is None:
+                print("#Error, unable to locate gcc")
+                return 1
+            elif not gcc.startswith('/usr/bin') and not gcc.startswith('/bin'):
+                print("#Error, find_executable(gcc)=", gcc)
+                print("#Unable to locate gcc under /bin or /usr/bin.")
+                return 1
+            else:
+                return subprocess.check_output([gcc, "-E", fname])
 
         ffi.cdef(load('include/raft.h'))
         ffi.cdef(load('include/raft_log.h'))
