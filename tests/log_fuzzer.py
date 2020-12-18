@@ -5,6 +5,7 @@ import unittest
 
 from hypothesis import given
 from hypothesis.strategies import lists, just, integers, one_of
+from distutils.spawn import find_executable
 
 
 class Libraft(object):
@@ -28,7 +29,8 @@ class Libraft(object):
         self.lib = ffi.dlopen(library)
 
         def load(fname):
-            return subprocess.check_output(["/bin/gcc", "-E", fname])
+            gcc = find_executable('gcc')
+            return subprocess.check_output([gcc, "-E", fname])
 
         ffi.cdef(load('include/raft.h'))
         ffi.cdef(load('include/raft_log.h'))
