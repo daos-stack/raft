@@ -6,6 +6,8 @@
 
 %bcond_with use_release
 
+%global debug_package %{nil}
+
 Name:		raft
 Version:	0.7.3
 Release:	1%{?relval}%{?dist}
