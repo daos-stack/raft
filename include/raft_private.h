@@ -84,6 +84,7 @@ typedef struct {
 
 void raft_become_candidate(raft_server_t* me);
 int raft_become_prevoted_candidate(raft_server_t* me_);
+int raft_is_prevoted_candidate(raft_server_t* me_);
 
 void raft_randomize_election_timeout(raft_server_t* me_);
 

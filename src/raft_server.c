@@ -563,10 +563,11 @@ static int __should_grant_vote(raft_server_private_t* me, msg_requestvote_t* vr)
     if (my_node && !raft_node_is_voting(my_node))
         return 0;
 
-    /* For a prevote, we could proceed to the votedFor check, if
-     * vr->term == currentTerm - 1. That would only matter if we had
-     * rejected a previous RequestVote from a third server, who had
-     * already won a prevote phase. */
+    /* For a prevote, we could theoretically proceed to the votedFor check
+     * below, if vr->term == currentTerm - 1. That, however, would only matter
+     * if we had rejected a previous RequestVote from a third server, who must
+     * have already won a prevote phase. Hence, we choose not to look into
+     * votedFor for simplicity. */
     if (vr->term < raft_get_current_term((void*)me))
         return 0;
 
