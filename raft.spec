@@ -63,7 +63,6 @@ cp -a include/* %{buildroot}/%{_includedir}
 %changelog
 * Mon May 31 2021 Li Wei <wei.g.li@intel.com> -0.8.0-1
 - Add Pre-Vote
-- Add EL8 support
 
 * Mon Apr 26 2021 Brian J. Murrell <brian.murrell@intel> -0.7.3-2
 - Provides daos-raft to avoid getting other raft packages

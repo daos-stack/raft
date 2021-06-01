@@ -2,7 +2,6 @@ raft (0.8.0-1) unstable; urgency=medium
 
   [ Li Wei ]
   * Add Pre-Vote
-  * Add EL8 support
 
  -- Li Wei <wei.g.li@intel.com>  Mon, May 31 2021 17:25:00 +0800
 
