@@ -12,6 +12,8 @@ if [ -w /etc/mock/"$CHROOT_NAME".cfg ]; then
 /^# repos$/+2;/^"""$/-1d
 wq
 EOF
+    elif [[ $CHROOT_NAME =~ epel-8-* ]]; then
+        echo -e "config_opts['module_enable'] = ['javapackages-tools']\n" >> /etc/mock/"$CHROOT_NAME".cfg
     fi
     echo -e "config_opts['yum.conf'] += \"\"\"\n" >> /etc/mock/"$CHROOT_NAME".cfg
     for repo in $DISTRO_BASE_PR_REPOS $PR_REPOS; do
