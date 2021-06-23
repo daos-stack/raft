@@ -13,7 +13,7 @@ Version:	0.8.0
 Release:	1%{?relval}%{?dist}
 
 Summary:	C implementation of the Raft Consensus protocol, BSD licensed
-Provides:	daos-raft = version-%release%{?dist}
+Provides:	daos-raft = %version-%release%{?dist}
 
 License:	BSD-3-Clause
 URL:		https://github.com/daos-stack/%{name}
