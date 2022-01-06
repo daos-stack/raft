@@ -2397,6 +2397,7 @@ void TestRaft_follower_becoming_candidate_votes_for_self(CuTest * tc)
     raft_set_callbacks(r, &funcs, NULL);
 
     raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
     CuAssertTrue(tc, -1 == raft_get_voted_for(r));
     raft_become_candidate(r);
     raft_become_prevoted_candidate(r);
