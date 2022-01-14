@@ -972,6 +972,7 @@ int raft_apply_entry(raft_server_t* me_)
     raft_node_id_t node_id = me->cb.log_get_node_id(me_, raft_get_udata(me_), ety, log_idx);
     raft_node_t* node = raft_get_node(me_, node_id);
     assert(node || ety->type == RAFT_LOGTYPE_REMOVE_NODE);
+    raft_node_set_applied_idx(node, log_idx);
 
     switch (ety->type) {
         case RAFT_LOGTYPE_ADD_NODE:
@@ -988,12 +989,8 @@ int raft_apply_entry(raft_server_t* me_)
                 node = NULL;
             }
             break;
-    }
-    if (node)
-    {
-        raft_node_set_applied_idx(node, log_idx);
-        if (raft_node_get_offered_idx(node) == log_idx)
-            raft_node_set_offered_idx(node, -1);
+        default:
+            break;
     }
 
     return 0;
@@ -1283,6 +1280,13 @@ void raft_offer_log(raft_server_t* me_, raft_entry_t* entries,
         raft_node_id_t  node_id = me->cb.log_get_node_id(me_, raft_get_udata(me_),
                                                          ety, idx + i);
         raft_node_t* node = raft_get_node(me_, node_id);
+        int is_self = node_id == raft_get_nodeid(me_);
+
+        if (!node && ety->type == RAFT_LOGTYPE_ADD_NONVOTING_NODE)
+        {
+            node = raft_add_non_voting_node_internal(me_, ety, NULL,
+                                                     node_id, is_self);
+        }
         assert(node || ety->type == RAFT_LOGTYPE_REMOVE_NODE);
         if (node)
             raft_node_set_offered_idx(node, idx + i);
@@ -1364,22 +1368,9 @@ int raft_begin_snapshot(raft_server_t *me_, raft_index_t idx)
 int raft_end_snapshot(raft_server_t *me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
-    int i;
 
     if (!me->snapshot_in_progress || me->snapshot_last_idx == 0)
         return -1;
-
-    for (i = 0; i < me->num_nodes; i++)
-    {
-        raft_node_t* node = me->nodes[i];
-        /*
-         * Reset applied idx to -1 if voting not committed before polling
-         * NB: If addition is not committed this node would've been deleted.
-         */
-        if (raft_node_get_applied_idx(node) <= me->snapshot_last_idx
-            && !raft_node_is_voting_committed(node))
-                raft_node_set_applied_idx(node, -1);
-    }
 
     int e = log_poll(me->log, me->snapshot_last_idx);
     if (e != 0)
