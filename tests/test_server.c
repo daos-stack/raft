@@ -3332,7 +3332,7 @@ void TestRaft_leader_recv_appendentries_response_set_has_sufficient_logs_for_nod
     raft_add_node(r, NULL, 2, 0);
     raft_add_node(r, NULL, 3, 0);
     raft_add_node(r, NULL, 4, 0);
-    raft_node_t* node = raft_add_non_voting_node(r, NULL, 5, 0);
+    raft_node_t* node = raft_add_node(r, NULL, 5, 0);
 
     int has_sufficient_logs_flag = 0;
     raft_set_callbacks(r, &funcs, &has_sufficient_logs_flag);
@@ -3364,6 +3364,7 @@ void TestRaft_leader_recv_appendentries_response_set_has_sufficient_logs_for_nod
     aer.current_idx = 2;
     aer.first_idx = 1;
 
+    raft_node_set_voting(node, 0);
     raft_recv_appendentries_response(r, node, &aer);
     CuAssertIntEquals(tc, 1, has_sufficient_logs_flag);
 

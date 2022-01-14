@@ -121,21 +121,11 @@ raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
 
 void raft_node_free(raft_node_t* me_);
 
-void raft_node_set_server(raft_node_t* me_, raft_server_t *server);
-
 void raft_node_set_next_idx(raft_node_t* node, raft_index_t nextIdx);
 
 void raft_node_set_match_idx(raft_node_t* node, raft_index_t matchIdx);
 
 raft_index_t raft_node_get_match_idx(raft_node_t* me_);
-
-void raft_node_set_offered_idx(raft_node_t* me_, raft_index_t offeredIdx);
-
-raft_index_t raft_node_get_offered_idx(raft_node_t* me_);
-
-void raft_node_set_applied_idx(raft_node_t* me_, raft_index_t appliedIdx);
-
-raft_index_t raft_node_get_applied_idx(raft_node_t* me_);
 
 void raft_node_vote_for_me(raft_node_t* me_, const int vote);
 
