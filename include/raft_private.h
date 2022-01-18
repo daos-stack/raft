@@ -145,12 +145,6 @@ void raft_pop_log(raft_server_t* me_, raft_entry_t* entries,
 
 raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
 
-int raft_node_is_active(raft_node_t* me_);
-
-void raft_node_set_voting_committed(raft_node_t* me_, int voting);
-
-int raft_node_set_addition_committed(raft_node_t* me_, int committed);
-
 int raft_get_entry_term(raft_server_t* me_, raft_index_t idx, raft_term_t* term);
 
 #endif /* RAFT_PRIVATE_H_ */
