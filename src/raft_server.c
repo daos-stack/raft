@@ -862,7 +862,7 @@ static int __cfg_change_is_valid(raft_server_private_t* me, msg_entry_t* ety)
             break;
 
         case RAFT_LOGTYPE_PROMOTE_NODE:
-        case RAFT_LOGTYPE_REMOVE_NON_VOTING_NODE:
+        case RAFT_LOGTYPE_REMOVE_NONVOTING_NODE:
             if (!node || raft_node_is_voting(node))
                 return 0;
             break;
@@ -1259,7 +1259,7 @@ int raft_entry_is_cfg_change(raft_entry_t* ety)
            RAFT_LOGTYPE_ADD_NONVOTING_NODE == ety->type ||
            RAFT_LOGTYPE_PROMOTE_NODE == ety->type ||
            RAFT_LOGTYPE_DEMOTE_NODE == ety->type ||
-           RAFT_LOGTYPE_REMOVE_NON_VOTING_NODE == ety->type ||
+           RAFT_LOGTYPE_REMOVE_NONVOTING_NODE == ety->type ||
            RAFT_LOGTYPE_REMOVE_NODE == ety->type;
 }
 
@@ -1313,7 +1313,7 @@ void raft_offer_log(raft_server_t* me_, raft_entry_t* entries,
                 raft_remove_node(me_, node);
                 break;
 
-            case RAFT_LOGTYPE_REMOVE_NON_VOTING_NODE:
+            case RAFT_LOGTYPE_REMOVE_NONVOTING_NODE:
                 assert(node && !raft_node_is_voting(node));
                 raft_remove_node(me_, node);
                 break;
@@ -1358,7 +1358,7 @@ void raft_pop_log(raft_server_t* me_, raft_entry_t* entries,
                 assert(node);
                 break;
 
-            case RAFT_LOGTYPE_REMOVE_NON_VOTING_NODE:
+            case RAFT_LOGTYPE_REMOVE_NONVOTING_NODE:
                 assert(!node);
                 node = raft_add_non_voting_node_internal(me_, ety, NULL, node_id, is_self);
                 assert(node);

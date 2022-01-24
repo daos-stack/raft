@@ -77,7 +77,7 @@ typedef enum {
      * Membership change.
      * Remove a non-voting node.
      */
-    RAFT_LOGTYPE_REMOVE_NON_VOTING_NODE,
+    RAFT_LOGTYPE_REMOVE_NONVOTING_NODE,
     /**
      * Users can piggyback the entry mechanism by specifying log types that
      * are higher than RAFT_LOGTYPE_NUM.
