@@ -717,6 +717,59 @@ void TestRaft_server_recv_entry_fails_if_there_is_already_a_voting_change(CuTest
     CuAssertTrue(tc, 1 == raft_get_commit_idx(r));
 }
 
+void TestRaft_server_recv_entry_succeeds_when_adding_a_removed_node(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .log_get_node_id = __raft_log_get_node_id,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_set_election_timeout(r, 1000);
+    raft_become_leader(r);
+    CuAssertIntEquals(tc, 0, raft_get_commit_idx(r));
+
+    /* entry message */
+    msg_entry_t ety = {};
+    ety.type = RAFT_LOGTYPE_ADD_NODE;
+    ety.id = 1;
+    ety.data.buf = "2";
+    ety.data.len = 2;
+
+    /* add node 2 */
+    msg_entry_response_t cr;
+    CuAssertIntEquals(tc, 0, raft_recv_entry(r, &ety, &cr));
+    CuAssertIntEquals(tc, 1, raft_get_log_count(r));
+    CuAssertIntEquals(tc, 2, raft_get_num_nodes(r));
+    CuAssertIntEquals(tc, 2, raft_get_num_voting_nodes(r));
+    CuAssertPtrNotNull(tc, raft_get_node(r, 2));
+    raft_set_commit_idx(r, 1);
+    raft_apply_all(r);
+
+    /* remove node 2 */
+    ety.type = RAFT_LOGTYPE_REMOVE_NODE;
+    ety.id = 2;
+    CuAssertIntEquals(tc, 0, raft_recv_entry(r, &ety, &cr));
+    CuAssertIntEquals(tc, 2, raft_get_log_count(r));
+    CuAssertIntEquals(tc, 1, raft_get_num_nodes(r));
+    CuAssertIntEquals(tc, 1, raft_get_num_voting_nodes(r));
+    CuAssertPtrEquals(tc, NULL, raft_get_node(r, 2));
+    raft_set_commit_idx(r, 2);
+    raft_apply_all(r);
+
+    /* re-add node 2 */
+    ety.type = RAFT_LOGTYPE_ADD_NODE;
+    ety.id = 3;
+    CuAssertIntEquals(tc, 0, raft_recv_entry(r, &ety, &cr));
+    CuAssertIntEquals(tc, 3, raft_get_log_count(r));
+    CuAssertIntEquals(tc, 2, raft_get_num_nodes(r));
+    CuAssertIntEquals(tc, 2, raft_get_num_voting_nodes(r));
+    CuAssertPtrNotNull(tc, raft_get_node(r, 2));
+    raft_set_commit_idx(r, 3);
+    raft_apply_all(r);
+}
+
 void TestRaft_server_cfg_sets_num_nodes(CuTest * tc)
 {
     void *r = raft_new();
