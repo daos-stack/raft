@@ -414,13 +414,13 @@ It's highly recommended that when a node is added to the cluster that its node I
 
 1. Append the configuration change using ``raft_recv_entry``. Make sure the entry has the type set to ``RAFT_LOGTYPE_ADD_NONVOTING_NODE``
 
-2. Once ``node_has_sufficient_logs`` callback fires, append a configuration finalization log entry using ``raft_recv_entry``. Make sure the entry has a type set to ``RAFT_LOGTYPE_ADD_NODE``
+2. Once ``node_has_sufficient_logs`` callback fires, append a configuration finalization log entry using ``raft_recv_entry``. Make sure the entry has a type set to ``RAFT_LOGTYPE_PROMOTE_NODE``
 
 **Removing a node**
 
-1. Append the configuration change using ``raft_recv_entry``. Make sure the entry has the type set to ``RAFT_LOGTYPE_REMOVE_NODE``
+1. Append the configuration change using ``raft_recv_entry``. Make sure the entry has the type set to ``RAFT_LOGTYPE_REMOVE_NODE`` for a voting node or ``RAFT_LOGTYPE_REMOVE_NONVOTING_NODE`` for a non-voting node.
 
-2. Once the ``RAFT_LOGTYPE_REMOVE_NODE`` configuration change log is applied in the ``applylog`` callback we shutdown the server if it is to be removed.
+2. Once the configuration change log is applied in the ``applylog`` callback we shutdown the server if it is to be removed.
 
 **Membership callback**
 
@@ -444,7 +444,6 @@ The process works like this:
 8. Once the peer has the complete snapshot, the user must call ``raft_begin_load_snapshot``.
 9. Peer calls ``raft_add_node`` to add nodes as per the snapshot's membership info.
 10. Peer calls ``raft_node_set_voting`` to nodes as per the snapshot's membership info.
-11. Finally, peer calls ``raft_node_set_active`` to nodes as per the snapshot's membership info.
 
 When a node receives a snapshot it could reuse that snapshot itself for other nodes.
 
