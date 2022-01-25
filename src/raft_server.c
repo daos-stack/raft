@@ -259,7 +259,7 @@ void raft_become_follower(raft_server_t* me_)
 int raft_periodic(raft_server_t* me_, int msec_since_last_period)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
-    raft_node_t *my_node = raft_get_my_node((void *)me);
+    raft_node_t *my_node = raft_get_my_node(me_);
 
     me->timeout_elapsed += msec_since_last_period;
 
