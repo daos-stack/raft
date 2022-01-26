@@ -1337,7 +1337,7 @@ void raft_pop_log(raft_server_t* me_, raft_entry_t* entries,
         if (!raft_entry_is_cfg_change(ety))
             continue;
 
-        if (idx - i <= me->voting_cfg_change_log_idx)
+        if (idx + i <= me->voting_cfg_change_log_idx)
             me->voting_cfg_change_log_idx = -1;
 
         raft_node_id_t node_id = me->cb.log_get_node_id(me_, raft_get_udata(me_),
