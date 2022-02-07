@@ -1094,7 +1094,7 @@ raft_node_t* raft_add_node_internal(raft_server_t* me_, raft_entry_t *ety, void*
     /* we shouldn't add a node twice */
     raft_node_t* node = raft_get_node(me_, id);
     if (node)
-            return NULL;
+        return NULL;
 
     node = raft_node_new(udata, id);
     if (!node)
