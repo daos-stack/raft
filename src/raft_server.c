@@ -1477,9 +1477,8 @@ int raft_begin_load_snapshot(
     raft_set_snapshot_metadata(me_, last_included_term, me->last_applied_idx);
 
     /* remove all nodes */
-    int i;
-    for (i = 0; i < me->num_nodes; i++)
-        raft_remove_node(me_, me->nodes[i]);
+    while (me->num_nodes > 0)
+        raft_remove_node(me_, me->nodes[0]);
 
     /* this will be realloc'd by a raft_add_node */
     me->num_nodes = 0;

@@ -418,7 +418,7 @@ It's highly recommended that when a node is added to the cluster that its node I
 
 **Removing a node**
 
-1. Append the configuration change using ``raft_recv_entry``. Make sure the entry has the type set to ``RAFT_LOGTYPE_REMOVE_NODE`` for a voting node or ``RAFT_LOGTYPE_REMOVE_NONVOTING_NODE`` for a non-voting node.
+1. Append the configuration change using ``raft_recv_entry``. Make sure the entry has the type set to ``RAFT_LOGTYPE_REMOVE_NODE`` for a voting node or ``RAFT_LOGTYPE_REMOVE_NONVOTING_NODE`` for a non-voting node (e.g., one that was added but not promoted, or one that was demoted with RAFT_LOGTYPE_DEMOTE_NODE).
 
 2. Once the configuration change log is applied in the ``applylog`` callback we shutdown the server if it is to be removed.
 
