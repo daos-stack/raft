@@ -64,7 +64,6 @@ cp -a include/* %{buildroot}/%{_includedir}
 * Wed Apr 06 2022 Li Wei <wei.g.li@intel.com> -0.9.1-1
 - Fix membership changes
 - Fix node ID initialization
-- Update packaging
 
 * Wed Jan 05 2022 Li Wei <wei.g.li@intel.com> -0.9.0-1
 - Remove the upstream optimization that allows election-less leaders
