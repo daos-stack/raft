@@ -80,6 +80,13 @@ typedef struct {
     /* Last compacted snapshot */
     raft_index_t snapshot_last_idx;
     raft_term_t snapshot_last_term;
+
+    /* time when we become leader*/
+    raft_time_t inauguration;
+
+    /* grace period after each lease expiration time honored when we determine
+     * if a leader is maintaining leases from a majority (see raft_periodic) */
+    int lease_maintenance_grace;
 } raft_server_private_t;
 
 int raft_become_candidate(raft_server_t* me);
@@ -132,6 +139,8 @@ void raft_node_vote_for_me(raft_node_t* me_, const int vote);
 int raft_node_has_vote_for_me(raft_node_t* me_);
 
 void raft_node_set_has_sufficient_logs(raft_node_t* me_);
+
+void raft_node_set_lease(raft_node_t* me_, raft_time_t lease);
 
 int raft_votes_is_majority(const int nnodes, const int nvotes);
 

@@ -77,6 +77,9 @@ raft_server_t* raft_new()
     me->snapshot_in_progress = 0;
     raft_set_snapshot_metadata((raft_server_t*)me, 0, 0);
 
+    me->inauguration = 0;
+    me->lease_maintenance_grace = 0;
+
     return (raft_server_t*)me;
 }
 
@@ -118,6 +121,8 @@ void raft_clear(raft_server_t* me_)
     me->num_nodes = 0;
     me->node_id = -1;
     log_clear(me->log);
+    me->inauguration = 0;
+    me->lease_maintenance_grace = 0;
 }
 
 int raft_delete_entry_from_idx(raft_server_t* me_, raft_index_t idx)
@@ -152,6 +157,7 @@ void raft_become_leader(raft_server_t* me_)
 
     raft_set_state(me_, RAFT_STATE_LEADER);
     me->election_timer = me->cb.get_time(me_, me->udata);
+    me->inauguration = me->election_timer;
     for (i = 0; i < me->num_nodes; i++)
     {
         raft_node_t* node = me->nodes[i];
@@ -262,6 +268,39 @@ void raft_become_follower(raft_server_t* me_)
     me->election_timer = me->cb.get_time(me_, me->udata);
 }
 
+static int has_majority_leases(raft_server_t* me_, raft_time_t now, int grace)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    assert(me->state == RAFT_STATE_LEADER);
+
+    int n = 0;
+    int n_voting = 0;
+
+    int i;
+    for (i = 0; i < me->num_nodes; i++)
+    {
+        if (raft_node_is_voting(me->nodes[i]))
+        {
+            n_voting++;
+            if (raft_is_self(me_, me->nodes[i]) ||
+                now < raft_node_get_lease(me->nodes[i]) + grace)
+                n++;
+        }
+    }
+
+    return n_voting / 2 + 1 <= n;
+}
+
+int raft_has_majority_leases(raft_server_t* me_)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    if (me->state != RAFT_STATE_LEADER)
+        return 0;
+
+    return has_majority_leases(me_, me->cb.get_time(me_, me->udata), 0 /* grace */);
+}
+
 int raft_periodic(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -270,8 +309,20 @@ int raft_periodic(raft_server_t* me_)
 
     if (me->state == RAFT_STATE_LEADER)
     {
-        if (me->request_timeout <= now - me->election_timer)
+        if (me->election_timeout + me->lease_maintenance_grace < now - me->inauguration &&
+            !has_majority_leases(me_, now, me->lease_maintenance_grace))
+        {
+            /* A leader who can't maintain leases from a majority shall step
+             * down. Since a leader doesn't have any leases at the beginning of
+             * its term, we give it some time to acquire the initial leases. */
+            __log(me_, NULL, "unable to maintain majority leases");
+            raft_become_follower(me_);
+            me->leader_id = -1;
+        }
+        else if (me->request_timeout <= now - me->election_timer)
+        {
             raft_send_appendentries_all(me_);
+        }
     }
     else if (me->election_timeout_rand <= now - me->election_timer &&
         /* Don't become the leader when building snapshots or bad things will
@@ -330,11 +381,12 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     __log(me_, node,
-          "received appendentries response %s ci:%ld rci:%ld 1stidx:%ld",
+          "received appendentries response %s ci:%ld rci:%ld 1stidx:%ld ls=%ld",
           r->success == 1 ? "SUCCESS" : "fail",
           raft_get_current_idx(me_),
           r->current_idx,
-          r->first_idx);
+          r->first_idx,
+          r->lease);
 
     if (!node)
         return -1;
@@ -355,6 +407,8 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     }
     else if (me->current_term != r->term)
         return 0;
+
+    raft_node_set_lease(node, r->lease);
 
     raft_index_t match_idx = raft_node_get_match_idx(node);
 
@@ -477,6 +531,7 @@ int raft_recv_appendentries(
     me->leader_id = raft_node_get_id(node);
 
     me->election_timer = me->cb.get_time(me_, me->udata);
+    r->lease = me->election_timer + me->election_timeout;
 
     /* Not the first appendentries we've received */
     /* NOTE: the log starts at 1 */
@@ -768,6 +823,7 @@ int raft_recv_installsnapshot(raft_server_t* me_,
 
     me->leader_id = raft_node_get_id(node);
     me->election_timer = me->cb.get_time(me_, me->udata);
+    r->lease = me->election_timer + me->election_timeout;
 
     if (is->last_idx <= raft_get_commit_idx(me_))
     {
@@ -819,6 +875,8 @@ int raft_recv_installsnapshot_response(raft_server_t* me_,
     }
     else if (me->current_term != r->term)
         return 0;
+
+    raft_node_set_lease(node, r->lease);
 
     assert(me->cb.recv_installsnapshot_response);
     int e = me->cb.recv_installsnapshot_response(me_, me->udata, node, r);
