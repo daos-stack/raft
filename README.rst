@@ -91,7 +91,7 @@ We need to call ``raft_periodic`` at periodic intervals.
 
 .. code-block:: c
 
-    raft_periodic(raft, 1000);
+    raft_periodic(raft);
 
 *Example using a libuv timer:*
 
@@ -99,7 +99,7 @@ We need to call ``raft_periodic`` at periodic intervals.
 
     static void __periodic(uv_timer_t* handle)
     {
-        raft_periodic(sv->raft, PERIOD_MSEC);
+        raft_periodic(sv->raft);
     }
 
     uv_timer_t *periodic_req;

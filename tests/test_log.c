@@ -79,9 +79,20 @@ static int __log_pop_failing(
     return -1;
 }
 
+static raft_time_t __raft_clock = 1000000;
+
+static raft_time_t __raft_get_time(
+    raft_server_t* raft,
+    void *user_data
+    )
+{
+    return __raft_clock;
+}
+
 raft_cbs_t g_funcs = {
     .log_pop = __log_pop,
-    .log_get_node_id = __logentry_get_node_id
+    .log_get_node_id = __logentry_get_node_id,
+    .get_time = __raft_get_time
 };
 
 static int log_append_entry(log_t* me_, raft_entry_t* ety)
@@ -175,7 +186,8 @@ void TestLog_delete(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -219,7 +231,8 @@ void TestLog_delete_onwards(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -260,7 +273,8 @@ void TestLog_delete_handles_log_pop_failure(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop_failing,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -293,7 +307,8 @@ void TestLog_delete_fails_for_idx_zero(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -331,7 +346,8 @@ void TestLog_delete_processes_cfg_entries(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id_check
+        .log_get_node_id = __logentry_get_node_id_check,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -396,7 +412,8 @@ void TestLog_poll(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -454,7 +471,8 @@ void TestLog_delete_batches(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -687,7 +705,8 @@ void TestLog_delete_after_polling_from_double_append(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 
@@ -732,7 +751,8 @@ void TestLog_get_from_idx_with_base_off_by_one(CuTest * tc)
     void *r = raft_new();
     raft_cbs_t funcs = {
         .log_pop = __log_pop,
-        .log_get_node_id = __logentry_get_node_id
+        .log_get_node_id = __logentry_get_node_id,
+        .get_time = __raft_get_time
     };
     raft_set_callbacks(r, &funcs, queue);
 

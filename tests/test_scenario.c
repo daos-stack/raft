@@ -30,6 +30,16 @@ static int __raft_persist_vote(
     return 0;
 }
 
+static raft_time_t __raft_clock = 1000000;
+
+static raft_time_t __raft_get_time(
+    raft_server_t* raft,
+    void *udata
+    )
+{
+    return __raft_clock;
+}
+
 void TestRaft_scenario_leader_appears(CuTest * tc)
 {
     unsigned long i, j;
@@ -55,12 +65,16 @@ void TestRaft_scenario_leader_appears(CuTest * tc)
                                  .send_appendentries = sender_appendentries,
                                  .persist_term = __raft_persist_term,
                                  .persist_vote = __raft_persist_vote,
-                                 .log = NULL
+                                 .log = NULL,
+                                 .get_time = __raft_get_time
                              }), sender[j]);
+        /* NOTE: start the 1st node a while before others (see below)*/
+        if (j == 0)
+            __raft_clock += 1000;
     }
 
     /* NOTE: important for 1st node to send vote request before others */
-    raft_periodic(r[0], 1000);
+    raft_periodic(r[0]);
 
     for (i = 0; i < 20; i++)
     {
@@ -73,8 +87,9 @@ one_more_time:
             if (sender_msgs_available(sender[j]))
                 goto one_more_time;
 
+        __raft_clock += 100;
         for (j = 0; j < 3; j++)
-            raft_periodic(r[j], 100);
+            raft_periodic(r[j]);
     }
 
     int leaders = 0;

@@ -72,7 +72,8 @@ int raft_get_num_voting_nodes(raft_server_t* me_)
 
 int raft_get_timeout_elapsed(raft_server_t* me_)
 {
-    return ((raft_server_private_t*)me_)->timeout_elapsed;
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    return me->cb.get_time(me_, me->udata) - me->election_timer;
 }
 
 raft_index_t raft_get_log_count(raft_server_t* me_)
