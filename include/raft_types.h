@@ -27,4 +27,9 @@ typedef long int raft_index_t;
  */
 typedef int raft_node_id_t;
 
+/**
+ * Timestamp in milliseconds.
+ */
+typedef long int raft_time_t;
+
 #endif  /* RAFT_DEFS_H_ */

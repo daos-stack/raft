@@ -60,7 +60,7 @@ raft_server_t* raft_new()
         return NULL;
     me->current_term = 0;
     me->voted_for = -1;
-    me->timeout_elapsed = 0;
+    me->election_timer = 0;
     me->request_timeout = 200;
     me->election_timeout = 1000;
     raft_randomize_election_timeout((raft_server_t*)me);
@@ -87,6 +87,9 @@ void raft_set_callbacks(raft_server_t* me_, raft_cbs_t* funcs, void* udata)
     memcpy(&me->cb, funcs, sizeof(raft_cbs_t));
     me->udata = udata;
     log_set_callbacks(me->log, &me->cb, me_);
+
+    /* We couldn't initialize the timer without the callback. */
+    me->election_timer = me->cb.get_time(me_, me->udata);
 }
 
 void raft_free(raft_server_t* me_)
@@ -105,7 +108,7 @@ void raft_clear(raft_server_t* me_)
 
     me->current_term = 0;
     me->voted_for = -1;
-    me->timeout_elapsed = 0;
+    me->election_timer = 0;
     raft_randomize_election_timeout(me_);
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
@@ -133,8 +136,8 @@ int raft_election_start(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
-    __log(me_, NULL, "election starting: %d %d, term: %ld ci: %ld",
-          me->election_timeout_rand, me->timeout_elapsed, me->current_term,
+    __log(me_, NULL, "election starting: %d %ld, term: %ld ci: %ld",
+          me->election_timeout_rand, me->election_timer, me->current_term,
           raft_get_current_idx(me_));
 
     return raft_become_candidate(me_);
@@ -148,7 +151,7 @@ void raft_become_leader(raft_server_t* me_)
     __log(me_, NULL, "becoming leader term:%ld", raft_get_current_term(me_));
 
     raft_set_state(me_, RAFT_STATE_LEADER);
-    me->timeout_elapsed = 0;
+    me->election_timer = me->cb.get_time(me_, me->udata);
     for (i = 0; i < me->num_nodes; i++)
     {
         raft_node_t* node = me->nodes[i];
@@ -197,7 +200,7 @@ int raft_become_candidate(raft_server_t* me_)
 
     me->leader_id = -1;
     raft_randomize_election_timeout(me_);
-    me->timeout_elapsed = 0;
+    me->election_timer = me->cb.get_time(me_, me->udata);
 
     for (i = 0; i < me->num_nodes; i++)
     {
@@ -256,22 +259,21 @@ void raft_become_follower(raft_server_t* me_)
     __log(me_, NULL, "becoming follower");
     raft_set_state(me_, RAFT_STATE_FOLLOWER);
     raft_randomize_election_timeout(me_);
-    me->timeout_elapsed = 0;
+    me->election_timer = me->cb.get_time(me_, me->udata);
 }
 
-int raft_periodic(raft_server_t* me_, int msec_since_last_period)
+int raft_periodic(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
     raft_node_t *my_node = raft_get_my_node(me_);
-
-    me->timeout_elapsed += msec_since_last_period;
+    raft_time_t now = me->cb.get_time(me_, me->udata);
 
     if (me->state == RAFT_STATE_LEADER)
     {
-        if (me->request_timeout <= me->timeout_elapsed)
+        if (me->request_timeout <= now - me->election_timer)
             raft_send_appendentries_all(me_);
     }
-    else if (me->election_timeout_rand <= me->timeout_elapsed &&
+    else if (me->election_timeout_rand <= now - me->election_timer &&
         /* Don't become the leader when building snapshots or bad things will
          * happen when we get a client request */
         !raft_snapshot_is_in_progress(me_))
@@ -474,7 +476,7 @@ int raft_recv_appendentries(
     /* update current leader because ae->term is up to date */
     me->leader_id = raft_node_get_id(node);
 
-    me->timeout_elapsed = 0;
+    me->election_timer = me->cb.get_time(me_, me->udata);
 
     /* Not the first appendentries we've received */
     /* NOTE: the log starts at 1 */
@@ -601,6 +603,7 @@ int raft_recv_requestvote(raft_server_t* me_,
                           msg_requestvote_response_t *r)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    raft_time_t now = me->cb.get_time(me_, me->udata);
     int e = 0;
 
     if (!node)
@@ -608,7 +611,7 @@ int raft_recv_requestvote(raft_server_t* me_,
 
     /* Reject request if we have a leader */
     if ((me->leader_id != -1 && me->leader_id != vr->candidate_id &&
-        me->timeout_elapsed < me->election_timeout) || me->state == RAFT_STATE_LEADER)
+         now - me->election_timer < me->election_timeout) || me->state == RAFT_STATE_LEADER)
     {
         r->vote_granted = 0;
         goto done;
@@ -641,7 +644,7 @@ int raft_recv_requestvote(raft_server_t* me_,
 
             /* there must be in an election. */
             me->leader_id = -1;
-            me->timeout_elapsed = 0;
+            me->election_timer = now;
         }
     }
     else
@@ -764,7 +767,7 @@ int raft_recv_installsnapshot(raft_server_t* me_,
         raft_become_follower(me_);
 
     me->leader_id = raft_node_get_id(node);
-    me->timeout_elapsed = 0;
+    me->election_timer = me->cb.get_time(me_, me->udata);
 
     if (is->last_idx <= raft_get_commit_idx(me_))
     {
@@ -1071,7 +1074,7 @@ int raft_send_appendentries_all(raft_server_t* me_)
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int i, e;
 
-    me->timeout_elapsed = 0;
+    me->election_timer = me->cb.get_time(me_, me->udata);
     for (i = 0; i < me->num_nodes; i++)
     {
         if (raft_is_self(me_, me->nodes[i]))
