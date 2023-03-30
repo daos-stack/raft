@@ -47,8 +47,8 @@ typedef struct {
     /* true if this server is in the candidate prevote state (§4.2.3, §9.6) */
     int prevote;
 
-    /* amount of time left till timeout */
-    int timeout_elapsed;
+    /* start time of election timer */
+    raft_time_t election_timer;
  
     raft_node_t* nodes;
     int num_nodes;

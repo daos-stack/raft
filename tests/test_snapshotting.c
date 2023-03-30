@@ -84,6 +84,16 @@ static int __raft_send_installsnapshot_capture(raft_server_t* raft,
     return 0;
 }
 
+static raft_time_t __raft_clock = 1000000;
+
+static raft_time_t __raft_get_time(
+    raft_server_t* raft,
+    void *udata
+    )
+{
+    return 0;
+}
+
 /* static raft_cbs_t generic_funcs = { */
 /*     .persist_term = __raft_persist_term, */
 /*     .persist_vote = __raft_persist_vote, */
@@ -107,6 +117,7 @@ void TestRaft_leader_begin_snapshot_fails_if_no_logs_to_compact(CuTest * tc)
 {
     raft_cbs_t funcs = {
         .send_appendentries = __raft_send_appendentries,
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -145,6 +156,7 @@ void TestRaft_leader_will_not_apply_entry_if_snapshot_is_in_progress(CuTest * tc
 {
     raft_cbs_t funcs = {
         .send_appendentries = __raft_send_appendentries,
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -183,6 +195,7 @@ void TestRaft_leader_snapshot_end_fails_if_snapshot_not_in_progress(CuTest * tc)
 {
     raft_cbs_t funcs = {
         .send_appendentries = __raft_send_appendentries,
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -202,7 +215,8 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
     raft_cbs_t funcs = {
         .persist_term = __raft_persist_term,
         .send_appendentries = __raft_send_appendentries,
-        .send_installsnapshot = __raft_send_installsnapshot
+        .send_installsnapshot = __raft_send_installsnapshot,
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -239,7 +253,8 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
     CuAssertIntEquals(tc, 1, raft_get_log_count(r));
     CuAssertIntEquals(tc, 1, raft_get_commit_idx(r));
     CuAssertIntEquals(tc, 1, raft_get_last_applied_idx(r));
-    CuAssertIntEquals(tc, 0, raft_periodic(r, 1000));
+    __raft_clock += 1000;
+    CuAssertIntEquals(tc, 0, raft_periodic(r));
 }
 
 void TestRaft_leader_snapshot_end_succeeds_if_log_compacted2(CuTest * tc)
@@ -247,7 +262,8 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted2(CuTest * tc)
     raft_cbs_t funcs = {
         .persist_term = __raft_persist_term,
         .send_appendentries = __raft_send_appendentries,
-        .send_installsnapshot = __raft_send_installsnapshot
+        .send_installsnapshot = __raft_send_installsnapshot,
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -286,13 +302,15 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted2(CuTest * tc)
     CuAssertIntEquals(tc, 1, raft_get_log_count(r));
     CuAssertIntEquals(tc, 2, raft_get_commit_idx(r));
     CuAssertIntEquals(tc, 2, raft_get_last_applied_idx(r));
-    CuAssertIntEquals(tc, 0, raft_periodic(r, 1000));
+    __raft_clock += 1000;
+    CuAssertIntEquals(tc, 0, raft_periodic(r));
 }
 
 void TestRaft_joinee_needs_to_get_snapshot(CuTest * tc)
 {
     raft_cbs_t funcs = {
         .send_appendentries = __raft_send_appendentries,
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -330,6 +348,7 @@ void TestRaft_joinee_needs_to_get_snapshot(CuTest * tc)
 void TestRaft_follower_load_from_snapshot(CuTest * tc)
 {
     raft_cbs_t funcs = {
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -356,7 +375,8 @@ void TestRaft_follower_load_from_snapshot(CuTest * tc)
     CuAssertIntEquals(tc, 5, raft_get_commit_idx(r));
     CuAssertIntEquals(tc, 5, raft_get_last_applied_idx(r));
 
-    CuAssertIntEquals(tc, 0, raft_periodic(r, 1000));
+    __raft_clock += 1000;
+    CuAssertIntEquals(tc, 0, raft_periodic(r));
 
     /* committed idx means snapshot was unnecessary */
     ety.id = 6;
@@ -371,6 +391,7 @@ void TestRaft_follower_load_from_snapshot(CuTest * tc)
 void TestRaft_follower_load_from_snapshot_fails_if_already_loaded(CuTest * tc)
 {
     raft_cbs_t funcs = {
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();
@@ -397,6 +418,7 @@ void TestRaft_leader_sends_appendentries_when_node_next_index_was_compacted(CuTe
     raft_cbs_t funcs = {
         .send_appendentries = __raft_send_appendentries,
         .send_installsnapshot = __raft_send_installsnapshot_capture,
+        .get_time = __raft_get_time
     };
 
     msg_installsnapshot_t is;
@@ -453,6 +475,7 @@ void TestRaft_recv_entry_fails_if_snapshot_in_progress(CuTest* tc)
 {
     raft_cbs_t funcs = {
         .send_appendentries = __raft_send_appendentries,
+        .get_time = __raft_get_time
     };
 
     void *r = raft_new();

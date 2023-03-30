@@ -451,6 +451,17 @@ typedef void (
     raft_membership_e type
     );
 
+/** Callback for getting the current time.
+ * @param[in] raft The Raft server making this callback
+ * @param[in] user_data User data that is passed from Raft server
+ * @return The current time */
+typedef raft_time_t (
+*func_get_time_f
+)   (
+    raft_server_t* raft,
+    void *user_data
+    );
+
 typedef struct
 {
     /** Callback for sending request vote messages */
@@ -515,6 +526,9 @@ typedef struct
     /** Callback for catching debugging log messages
      * This callback is optional */
     func_log_f log;
+
+    /** Callback for getting the current time */
+    func_get_time_f get_time;
 } raft_cbs_t;
 
 typedef struct
@@ -589,12 +603,11 @@ void raft_set_election_timeout(raft_server_t* me, int msec);
 void raft_set_request_timeout(raft_server_t* me, int msec);
 
 /** Process events that are dependent on time passing.
- * @param[in] msec_elapsed Time in milliseconds since the last call
  * @return
  *  0 on success;
  *  -1 on failure;
  *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
-int raft_periodic(raft_server_t* me, int msec_elapsed);
+int raft_periodic(raft_server_t* me);
 
 /** Receive an appendentries message.
  *
