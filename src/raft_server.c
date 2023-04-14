@@ -607,8 +607,8 @@ int raft_recv_requestvote(raft_server_t* me_,
         node = raft_get_node(me_, vr->candidate_id);
 
     /* Reject request if we have a leader */
-    if (me->leader_id != -1 && me->leader_id != vr->candidate_id &&
-        me->timeout_elapsed < me->election_timeout)
+    if ((me->leader_id != -1 && me->leader_id != vr->candidate_id &&
+        me->timeout_elapsed < me->election_timeout) || me->state == RAFT_STATE_LEADER)
     {
         r->vote_granted = 0;
         goto done;

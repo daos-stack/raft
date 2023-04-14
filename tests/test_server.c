@@ -4415,6 +4415,47 @@ void TestRaft_leader_recv_prevote_responds_without_granting(CuTest * tc)
     CuAssertTrue(tc, 0 == rvr.vote_granted);
 }
 
+void TestRaft_leader_recv_prevote_after_election_timeout_responds_without_granting(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_vote = __raft_persist_vote,
+        .persist_term = __raft_persist_term,
+        .send_requestvote = __raft_send_requestvote,
+        .send_appendentries = sender_appendentries,
+    };
+
+    void *sender = sender_new(NULL);
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, sender);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 3, 0);
+    /* deliberately let election timeout < request timeout */
+    raft_set_election_timeout(r, 1000);
+    raft_set_request_timeout(r, 1001);
+    CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
+
+    raft_become_candidate(r);
+    raft_become_prevoted_candidate(r);
+
+    msg_requestvote_response_t rvr;
+    memset(&rvr, 0, sizeof(msg_requestvote_response_t));
+    rvr.term = 1;
+    rvr.vote_granted = 1;
+    raft_recv_requestvote_response(r, raft_get_node(r, 2), &rvr);
+    CuAssertTrue(tc, 1 == raft_is_leader(r));
+
+    raft_periodic(r, 1000);
+
+    /* receive request prevote from node 3 */
+    msg_requestvote_t rv;
+    memset(&rv, 0, sizeof(msg_requestvote_t));
+    rv.term = 1;
+    rv.prevote = 1;
+    raft_recv_requestvote(r, raft_get_node(r, 3), &rv, &rvr);
+    CuAssertTrue(tc, 0 == rvr.vote_granted);
+}
+
 void TestRaft_leader_recv_requestvote_responds_without_granting(CuTest * tc)
 {
     raft_cbs_t funcs = {
