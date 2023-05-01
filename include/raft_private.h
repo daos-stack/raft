@@ -47,6 +47,9 @@ typedef struct {
     /* true if this server is in the candidate prevote state (§4.2.3, §9.6) */
     int prevote;
 
+    /* start time of this server */
+    raft_time_t start_time;
+
     /* start time of election timer */
     raft_time_t election_timer;
  
@@ -80,9 +83,6 @@ typedef struct {
     /* Last compacted snapshot */
     raft_index_t snapshot_last_idx;
     raft_term_t snapshot_last_term;
-
-    /* time when we become leader*/
-    raft_time_t inauguration;
 
     /* grace period after each lease expiration time honored when we determine
      * if a leader is maintaining leases from a majority (see raft_periodic) */
@@ -141,6 +141,10 @@ int raft_node_has_vote_for_me(raft_node_t* me_);
 void raft_node_set_has_sufficient_logs(raft_node_t* me_);
 
 void raft_node_set_lease(raft_node_t* me_, raft_time_t lease);
+
+void raft_node_set_effective_time(raft_node_t* me_, raft_time_t effective_time);
+
+raft_time_t raft_node_get_effective_time(raft_node_t* me_);
 
 int raft_votes_is_majority(const int nnodes, const int nvotes);
 

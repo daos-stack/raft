@@ -33,6 +33,8 @@ typedef struct
 
     /* lease expiration time */
     raft_time_t lease;
+    /* time when this node becomes part of leader's configuration */
+    raft_time_t effective_time;
 } raft_node_private_t;
 
 raft_node_t* raft_node_new(void* udata, raft_node_id_t id)
@@ -47,6 +49,7 @@ raft_node_t* raft_node_new(void* udata, raft_node_id_t id)
     me->id = id;
     me->flags = RAFT_NODE_VOTING;
     me->lease = 0;
+    me->effective_time = 0;
     return (raft_node_t*)me;
 }
 
@@ -157,4 +160,16 @@ raft_time_t raft_node_get_lease(raft_node_t* me_)
 {
     raft_node_private_t* me = (raft_node_private_t*)me_;
     return me->lease;
+}
+
+void raft_node_set_effective_time(raft_node_t* me_, raft_time_t effective_time)
+{
+    raft_node_private_t* me = (raft_node_private_t*)me_;
+    me->effective_time = effective_time;
+}
+
+raft_time_t raft_node_get_effective_time(raft_node_t* me_)
+{
+    raft_node_private_t* me = (raft_node_private_t*)me_;
+    return me->effective_time;
 }

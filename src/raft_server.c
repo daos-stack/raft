@@ -77,7 +77,7 @@ raft_server_t* raft_new()
     me->snapshot_in_progress = 0;
     raft_set_snapshot_metadata((raft_server_t*)me, 0, 0);
 
-    me->inauguration = 0;
+    me->start_time = 0;
     me->lease_maintenance_grace = 0;
 
     return (raft_server_t*)me;
@@ -91,8 +91,10 @@ void raft_set_callbacks(raft_server_t* me_, raft_cbs_t* funcs, void* udata)
     me->udata = udata;
     log_set_callbacks(me->log, &me->cb, me_);
 
-    /* We couldn't initialize the timer without the callback. */
-    me->election_timer = me->cb.get_time(me_, me->udata);
+    /* We couldn't initialize the time fields without the callback. */
+    raft_time_t now = me->cb.get_time(me_, me->udata);
+    me->election_timer = now;
+    me->start_time = now;
 }
 
 void raft_free(raft_server_t* me_)
@@ -121,7 +123,7 @@ void raft_clear(raft_server_t* me_)
     me->num_nodes = 0;
     me->node_id = -1;
     log_clear(me->log);
-    me->inauguration = 0;
+    me->start_time = 0;
     me->lease_maintenance_grace = 0;
 }
 
@@ -156,8 +158,8 @@ void raft_become_leader(raft_server_t* me_)
     __log(me_, NULL, "becoming leader term:%ld", raft_get_current_term(me_));
 
     raft_set_state(me_, RAFT_STATE_LEADER);
-    me->election_timer = me->cb.get_time(me_, me->udata);
-    me->inauguration = me->election_timer;
+    raft_time_t now = me->cb.get_time(me_, me->udata);
+    me->election_timer = now;
     for (i = 0; i < me->num_nodes; i++)
     {
         raft_node_t* node = me->nodes[i];
@@ -167,6 +169,7 @@ void raft_become_leader(raft_server_t* me_)
 
         raft_node_set_next_idx(node, raft_get_current_idx(me_) + 1);
         raft_node_set_match_idx(node, 0);
+        raft_node_set_effective_time(node, now);
         raft_send_appendentries(me_, node);
     }
 }
@@ -268,7 +271,33 @@ void raft_become_follower(raft_server_t* me_)
     me->election_timer = me->cb.get_time(me_, me->udata);
 }
 
-static int has_majority_leases(raft_server_t* me_, raft_time_t now, int grace)
+static int has_lease(raft_server_t* me_, raft_node_t* node, raft_time_t now, int with_grace)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    if (raft_is_self(me_, node))
+        return 1;
+
+    if (with_grace)
+    {
+        if (now < raft_node_get_lease(node) + me->lease_maintenance_grace)
+            return 1;
+        /* Since a leader has no lease from any other node at the beginning of
+         * its term, or from any new node the leader adds thereafter, we give
+         * it some time to acquire the initial lease. */
+        if (now - raft_node_get_effective_time(node) < me->election_timeout + me->lease_maintenance_grace)
+            return 1;
+    }
+    else
+    {
+        if (now < raft_node_get_lease(node))
+            return 1;
+    }
+
+    return 0;
+}
+
+static int has_majority_leases(raft_server_t* me_, raft_time_t now, int with_grace)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
     assert(me->state == RAFT_STATE_LEADER);
@@ -282,8 +311,7 @@ static int has_majority_leases(raft_server_t* me_, raft_time_t now, int grace)
         if (raft_node_is_voting(me->nodes[i]))
         {
             n_voting++;
-            if (raft_is_self(me_, me->nodes[i]) ||
-                now < raft_node_get_lease(me->nodes[i]) + grace)
+            if (has_lease(me_, me->nodes[i], now, with_grace))
                 n++;
         }
     }
@@ -298,7 +326,9 @@ int raft_has_majority_leases(raft_server_t* me_)
     if (me->state != RAFT_STATE_LEADER)
         return 0;
 
-    return has_majority_leases(me_, me->cb.get_time(me_, me->udata), 0 /* grace */);
+    /* Check without grace, because the caller may be checking leadership for
+     * linearizability (§6.4). */
+    return has_majority_leases(me_, me->cb.get_time(me_, me->udata), 0 /* with_grace */);
 }
 
 int raft_periodic(raft_server_t* me_)
@@ -309,12 +339,9 @@ int raft_periodic(raft_server_t* me_)
 
     if (me->state == RAFT_STATE_LEADER)
     {
-        if (me->election_timeout + me->lease_maintenance_grace < now - me->inauguration &&
-            !has_majority_leases(me_, now, me->lease_maintenance_grace))
+        if (!has_majority_leases(me_, now, 1 /* with_grace */))
         {
-            /* A leader who can't maintain leases from a majority shall step
-             * down. Since a leader doesn't have any leases at the beginning of
-             * its term, we give it some time to acquire the initial leases. */
+            /* A leader who can't maintain majority leases shall step down. */
             __log(me_, NULL, "unable to maintain majority leases");
             raft_become_follower(me_);
             me->leader_id = -1;
@@ -664,9 +691,11 @@ int raft_recv_requestvote(raft_server_t* me_,
     if (!node)
         node = raft_get_node(me_, vr->candidate_id);
 
-    /* Reject request if we have a leader */
-    if (me->leader_id != -1 && me->leader_id != vr->candidate_id &&
-        now - me->election_timer < me->election_timeout)
+    /* Reject request if we have a leader or if we have just started (for we might
+     * have granted a lease before a restart) */
+    if ((me->leader_id != -1 && me->leader_id != vr->candidate_id &&
+         now - me->election_timer < me->election_timeout) ||
+        now - me->start_time < me->election_timeout)
     {
         r->vote_granted = 0;
         goto done;
@@ -1158,6 +1187,8 @@ raft_node_t* raft_add_node_internal(raft_server_t* me_, raft_entry_t *ety, void*
     node = raft_node_new(udata, id);
     if (!node)
         return NULL;
+    if (raft_is_leader(me_))
+        raft_node_set_effective_time(node, me->cb.get_time(me_, me->udata));
     void* p = realloc(me->nodes, sizeof(void*) * (me->num_nodes + 1));
     if (!p) {
         raft_node_free(node);
