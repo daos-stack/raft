@@ -38,6 +38,12 @@ void raft_set_lease_maintenance_grace(raft_server_t* me_, int millisec)
     me->lease_maintenance_grace = millisec;
 }
 
+void raft_set_first_start(raft_server_t* me_)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->first_start = 1;
+}
+
 void raft_set_nodeid(raft_server_t* me_, raft_node_id_t id)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;

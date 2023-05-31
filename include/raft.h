@@ -615,6 +615,11 @@ void raft_set_request_timeout(raft_server_t* me, int msec);
  * @param[in] msec Lease mainenace grace in milliseconds */
 void raft_set_lease_maintenance_grace(raft_server_t* me, int msec);
 
+/** Set "first start" flag.
+ * This indicates that me represents the first start of the (persistent)
+ * server. */
+void raft_set_first_start(raft_server_t* me);
+
 /** Process events that are dependent on time passing.
  * @return
  *  0 on success;

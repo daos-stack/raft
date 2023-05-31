@@ -87,6 +87,9 @@ typedef struct {
     /* grace period after each lease expiration time honored when we determine
      * if a leader is maintaining leases from a majority (see raft_periodic) */
     int lease_maintenance_grace;
+
+    /* represents the first start of this (persistent) server; not a restart */
+    int first_start;
 } raft_server_private_t;
 
 int raft_become_candidate(raft_server_t* me);

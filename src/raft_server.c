@@ -79,6 +79,7 @@ raft_server_t* raft_new()
 
     me->start_time = 0;
     me->lease_maintenance_grace = 0;
+    me->first_start = 0;
 
     return (raft_server_t*)me;
 }
@@ -125,6 +126,7 @@ void raft_clear(raft_server_t* me_)
     log_clear(me->log);
     me->start_time = 0;
     me->lease_maintenance_grace = 0;
+    me->first_start = 0;
 }
 
 int raft_delete_entry_from_idx(raft_server_t* me_, raft_index_t idx)
@@ -695,7 +697,7 @@ int raft_recv_requestvote(raft_server_t* me_,
      * have granted a lease before a restart) */
     if ((me->leader_id != -1 && me->leader_id != vr->candidate_id &&
          now - me->election_timer < me->election_timeout) ||
-        now - me->start_time < me->election_timeout)
+        (!me->first_start && now - me->start_time < me->election_timeout))
     {
         r->vote_granted = 0;
         goto done;
