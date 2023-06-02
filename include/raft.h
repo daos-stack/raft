@@ -200,6 +200,9 @@ typedef struct
     /** true if follower contained entry matching prevLogidx and prevLogTerm */
     int success;
 
+    /** lease expiration time */
+    raft_time_t lease;
+
     /* Non-Raft fields follow: */
     /* Having the following fields allows us to do less book keeping in
      * regards to full fledged RPC */
@@ -236,6 +239,9 @@ typedef struct
 
     /** True if the snapshot has been fully received */
     int complete;
+
+    /** lease expiration time */
+    raft_time_t lease;
 } msg_installsnapshot_response_t;
 
 typedef void* raft_server_t;
@@ -602,6 +608,18 @@ void raft_set_election_timeout(raft_server_t* me, int msec);
  * @param[in] msec Request timeout in milliseconds */
 void raft_set_request_timeout(raft_server_t* me, int msec);
 
+/** Set lease maintenance grace.
+ * The amount of time granted to a leader to reestablish an expired lease
+ * before the leader is concluded to be unable to maintain the lease (a leader
+ * who is unable to maintain leases from a majority steps down voluntarily)
+ * @param[in] msec Lease mainenace grace in milliseconds */
+void raft_set_lease_maintenance_grace(raft_server_t* me, int msec);
+
+/** Set "first start" flag.
+ * This indicates that me represents the first start of the (persistent)
+ * server. */
+void raft_set_first_start(raft_server_t* me);
+
 /** Process events that are dependent on time passing.
  * @return
  *  0 on success;
@@ -710,6 +728,12 @@ int raft_recv_entry(raft_server_t* me,
                     msg_entry_t* ety,
                     msg_entry_response_t *r);
 
+/** @return
+ *  nonzero if server is leader and has leases from majority of voting nodes;
+ *  0 if server is not leader or lacks leases from majority of voting nodes;
+*/
+int raft_has_majority_leases(raft_server_t* me_);
+
 /** Set this server's node ID.
  * This should be called right after raft_new/raft_clear. */
 void raft_set_nodeid(raft_server_t* me, raft_node_id_t id);
@@ -771,6 +795,9 @@ int raft_get_timeout_elapsed(raft_server_t* me);
 int raft_get_request_timeout(raft_server_t* me);
 
 /**
+ * @return lease maintenance grace in milliseconds */
+int raft_get_lease_maintenance_grace(raft_server_t* me);
+/**
  * @return index of last applied entry */
 raft_index_t raft_get_last_applied_idx(raft_server_t* me);
 
@@ -785,6 +812,10 @@ raft_index_t raft_node_get_match_idx(raft_node_t* me);
 /**
  * @return this node's user data */
 void* raft_node_get_udata(raft_node_t* me);
+
+/**
+ * @return this node's lease expiration time */
+raft_time_t raft_node_get_lease(raft_node_t* me_);
 
 /**
  * Set this node's user data */
