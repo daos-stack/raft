@@ -1104,7 +1104,7 @@ void TestRaft_server_recv_requestvote_reply_true_if_term_greater_than_or_equal_t
     raft_set_current_term(r, 1);
     wait_for_startup_lease(r);
 
-    /* term is less than current term */
+    /* term is greater than current term */
     memset(&rv, 0, sizeof(msg_requestvote_t));
     rv.term = 2;
     rv.last_log_idx = 1;
