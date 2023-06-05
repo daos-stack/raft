@@ -1,3 +1,11 @@
+raft (0.10.0-1) unstable; urgency=medium
+
+  [ Li Wei ]
+  * Add leadership lease
+  * Let leaders step down voluntarily when they can't maintain leases from majority
+
+ -- Li Wei <wei.g.li@intel.com>  Mon, 05 Jun 2023 09:07:00 +0900
+
 raft (0.9.2-1) unstable; urgency=medium
 
   [ Li Wei ]
