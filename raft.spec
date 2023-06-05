@@ -9,7 +9,7 @@
 %global debug_package %{nil}
 
 Name:		raft
-Version:	0.9.2
+Version:	0.10.0
 Release:	1%{?relval}%{?dist}
 
 Summary:	C implementation of the Raft Consensus protocol, BSD licensed
@@ -62,6 +62,10 @@ cp -a include/* %{buildroot}/%{_includedir}
 
 
 %changelog
+* Mon Jun 05 2023 Li Wei <wei.g.li@intel.com> -0.10.0-1
+- Add leadership lease
+- Let leaders step down voluntarily when they can't maintain leases from majority
+
 * Mon Feb 13 2023 Li Wei <wei.g.li@intel.com> -0.9.2-1
 - Fix assertion failures in raft_recv_requestvote
 
