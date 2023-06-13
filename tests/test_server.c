@@ -4506,6 +4506,7 @@ void TestRaft_leader_recv_prevote_after_election_timeout_responds_without_granti
         .persist_term = __raft_persist_term,
         .send_requestvote = __raft_send_requestvote,
         .send_appendentries = sender_appendentries,
+        .get_time = __raft_get_time
     };
 
     void *sender = sender_new(NULL);
@@ -4517,6 +4518,8 @@ void TestRaft_leader_recv_prevote_after_election_timeout_responds_without_granti
     /* deliberately let election timeout < request timeout */
     raft_set_election_timeout(r, 1000);
     raft_set_request_timeout(r, 1001);
+    /* set a lease maintenance grace so that we won't step down when we call raft_periodic below */
+    raft_set_lease_maintenance_grace(r, 1000);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 
     raft_become_candidate(r);
@@ -4529,7 +4532,8 @@ void TestRaft_leader_recv_prevote_after_election_timeout_responds_without_granti
     raft_recv_requestvote_response(r, raft_get_node(r, 2), &rvr);
     CuAssertTrue(tc, 1 == raft_is_leader(r));
 
-    raft_periodic(r, 1000);
+    __raft_clock += 1000;
+    raft_periodic(r);
 
     /* receive request prevote from node 3 */
     msg_requestvote_t rv;
