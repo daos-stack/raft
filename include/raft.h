@@ -26,6 +26,12 @@ typedef enum {
 } raft_error_e;
 
 typedef enum {
+    RAFT_LOG_ERROR,
+    RAFT_LOG_INFO,
+    RAFT_LOG_DEBUG,
+} raft_loglevel_e;
+
+typedef enum {
     RAFT_MEMBERSHIP_ADD,
     RAFT_MEMBERSHIP_REMOVE,
 } raft_membership_e;
@@ -353,6 +359,7 @@ typedef int (
  * @param[in] raft The Raft server making this callback
  * @param[in] node The node that is the subject of this log. Could be NULL.
  * @param[in] user_data User data that is passed from Raft server
+ * @param[in] level The log level
  * @param[in] buf The buffer that was logged */
 typedef void (
 *func_log_f
@@ -360,6 +367,7 @@ typedef void (
     raft_server_t* raft,
     raft_node_t* node,
     void *user_data,
+    raft_loglevel_e level,
     const char *buf
     );
 #endif
@@ -560,6 +568,11 @@ typedef struct
      * - a (IP,Port) tuple */
     void* udata_address;
 } raft_node_configuration_t;
+
+/** Set the global logging level.
+ * Only those messages at levels less than or equal to this level will be
+ * logged. Default to RAFT_LOG_INFO. */
+void raft_set_log_level(raft_loglevel_e level);
 
 /** Initialise a new Raft server.
  *
