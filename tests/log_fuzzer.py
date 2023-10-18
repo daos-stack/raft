@@ -1,11 +1,10 @@
-from cffi import FFI
-
-import subprocess #nosec
+import subprocess  # nosec
 import unittest
-
-from hypothesis import given
-from hypothesis.strategies import lists, just, integers, one_of
 from distutils.spawn import find_executable
+
+from cffi import FFI
+from hypothesis import given
+from hypothesis.strategies import integers, just, lists, one_of
 
 
 class Libraft(object):
