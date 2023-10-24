@@ -275,6 +275,7 @@ void TestRaft_election_start_does_not_increment_term(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
+    wait_for_startup_lease(r);
     raft_election_start(r);
     CuAssertTrue(tc, 1 == raft_get_current_term(r));
     CuAssertTrue(tc, raft_is_candidate(r));
@@ -288,6 +289,7 @@ void TestRaft_become_prevoted_candidate_increments_term(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
+    wait_for_startup_lease(r);
     raft_become_candidate(r);
     CuAssertTrue(tc, 1 == raft_get_current_term(r));
     CuAssertTrue(tc, raft_is_candidate(r));
@@ -917,8 +919,10 @@ void TestRaft_server_recv_prevote_response_increase_prevotes_for_me(
     raft_set_current_term(r, 1);
     CuAssertTrue(tc, 0 == raft_get_nvotes_for_me(r));
     CuAssertIntEquals(tc, 1, raft_get_current_term(r));
+    wait_for_startup_lease(r);
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     CuAssertIntEquals(tc, 1, raft_get_current_term(r));
     CuAssertIntEquals(tc, 1, raft_get_nvotes_for_me(r));
 
@@ -955,8 +959,10 @@ void TestRaft_server_recv_requestvote_response_increase_votes_for_me(
     raft_set_current_term(r, 1);
     CuAssertTrue(tc, 0 == raft_get_nvotes_for_me(r));
     CuAssertIntEquals(tc, 1, raft_get_current_term(r));
+    wait_for_startup_lease(r);
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     CuAssertIntEquals(tc, 2, raft_get_current_term(r));
     CuAssertTrue(tc, 1 == raft_get_nvotes_for_me(r));
@@ -987,9 +993,11 @@ void TestRaft_server_recv_prevote_response_ignored_by_prevoted_candidate(
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
+    wait_for_startup_lease(r);
     CuAssertIntEquals(tc, 0, raft_get_nvotes_for_me(r));
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     CuAssertIntEquals(tc, 1, raft_get_nvotes_for_me(r));
 
@@ -1193,6 +1201,7 @@ void TestRaft_server_recv_requestvote_candidate_step_down_if_term_is_higher_than
     wait_for_startup_lease(r);
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     raft_set_current_term(r, 1);
     CuAssertIntEquals(tc, 1, raft_get_voted_for(r));
@@ -1229,6 +1238,7 @@ void TestRaft_server_recv_requestvote_depends_on_candidate_id(
     wait_for_startup_lease(r);
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     raft_set_current_term(r, 1);
     CuAssertIntEquals(tc, 1, raft_get_voted_for(r));
@@ -1318,6 +1328,34 @@ void TestRaft_server_recv_prevote_ignore_if_master_is_fresh(CuTest * tc)
     __raft_clock += 1001;
     raft_periodic(r);
     raft_recv_requestvote(r, raft_get_node(r, 3), &rv, &rvr);
+    CuAssertTrue(tc, 1 == rvr.vote_granted);
+}
+
+void TestRaft_server_recv_requestvote_ignore_if_just_started(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_set_current_term(r, 1);
+    raft_set_election_timeout(r, 1000);
+
+    /* Receive an RV before the first election timeout passes */
+    msg_requestvote_t rv = { 
+        .term = 2,
+        .candidate_id = 2,
+        .last_log_idx = 1,
+        .last_log_term = 1
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertTrue(tc, 0 == rvr.vote_granted);
+
+    /* After election timeout passed, the same requestvote should be accepted */
+    __raft_clock += 1001;
+    raft_periodic(r);
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
     CuAssertTrue(tc, 1 == rvr.vote_granted);
 }
 
@@ -2387,6 +2425,7 @@ void TestRaft_candidate_becomes_candidate_is_candidate(CuTest * tc)
     raft_set_callbacks(r, &generic_funcs, NULL);
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
+    wait_for_startup_lease(r);
 
     raft_become_candidate(r);
     CuAssertTrue(tc, raft_is_candidate(r));
@@ -2399,9 +2438,11 @@ void TestRaft_follower_becoming_candidate_increments_current_term(CuTest * tc)
     raft_set_callbacks(r, &generic_funcs, NULL);
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
+    wait_for_startup_lease(r);
 
     CuAssertTrue(tc, 0 == raft_get_current_term(r));
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     CuAssertTrue(tc, 0 == raft_get_current_term(r));
     raft_become_prevoted_candidate(r);
     CuAssertTrue(tc, 1 == raft_get_current_term(r));
@@ -2415,8 +2456,10 @@ void TestRaft_follower_becoming_candidate_votes_for_self(CuTest * tc)
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
+    wait_for_startup_lease(r);
     CuAssertTrue(tc, -1 == raft_get_voted_for(r));
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     CuAssertTrue(tc, raft_get_nodeid(r) == raft_get_voted_for(r));
     CuAssertTrue(tc, 1 == raft_get_nvotes_for_me(r));
@@ -2437,7 +2480,11 @@ void TestRaft_follower_becoming_candidate_resets_election_timeout(CuTest * tc)
     raft_periodic(r);
     CuAssertTrue(tc, 900 == raft_get_timeout_elapsed(r));
 
+    /* Wait out the rest of the startup lease */
+    __raft_clock += 100;
+
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     /* time is selected randomly */
     CuAssertTrue(tc, raft_get_timeout_elapsed(r) < 1000);
 }
@@ -2508,8 +2555,11 @@ void TestRaft_follower_becoming_candidate_requests_votes_from_other_servers(
     /* set term so we can check it gets included in the outbound message */
     raft_set_current_term(r, 2);
 
+    wait_for_startup_lease(r);
+
     /* becoming candidate triggers prevote requests */
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
 
     /* 2 nodes = 2 prevote requests */
     rv = sender_poll_msg_data(sender);
@@ -2537,6 +2587,26 @@ void TestRaft_follower_becoming_candidate_requests_votes_from_other_servers(
     CuAssertTrue(tc, !rv->prevote);
 }
 
+void TestRaft_follower_refuse_to_campaign_if_just_started(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_set_current_term(r, 1);
+    raft_set_election_timeout(r, 1000);
+
+    /* Campaign before the first election timeout passes */
+    int e = raft_election_start(r);
+    CuAssertTrue(tc, RAFT_ERR_MIGHT_VIOLATE_LEASE == e);
+
+    /* After election timeout passed, the same requestvote should be accepted */
+    __raft_clock += 1001;
+    e = raft_election_start(r);
+    CuAssertTrue(tc, 0 == e);
+}
+
 /* Candidate 5.2 */
 void TestRaft_candidate_election_timeout_and_no_leader_results_in_new_election(
     CuTest * tc)
@@ -2559,9 +2629,11 @@ void TestRaft_candidate_election_timeout_and_no_leader_results_in_new_election(
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_election_timeout(r, 1000);
+    wait_for_startup_lease(r);
 
     /* server wants to be leader, so becomes candidate */
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     CuAssertTrue(tc, 1 == raft_get_current_term(r));
 
@@ -2597,9 +2669,11 @@ void TestRaft_candidate_receives_majority_of_votes_becomes_leader(CuTest * tc)
     raft_add_node(r, NULL, 4, 0);
     raft_add_node(r, NULL, 5, 0);
     CuAssertTrue(tc, 5 == raft_get_num_nodes(r));
+    wait_for_startup_lease(r);
 
     /* vote for self */
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     CuAssertTrue(tc, 1 == raft_get_current_term(r));
     CuAssertTrue(tc, 1 == raft_get_nvotes_for_me(r));
@@ -2724,6 +2798,7 @@ void TestRaft_candidate_may_grant_prevote_if_term_not_less_than_current_term(
 
     raft_set_current_term(r, 1);
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
 
     /* prevoting candidate may grant prevote */
     msg_requestvote_t rv;
@@ -2769,6 +2844,7 @@ void TestRaft_candidate_grant_prevote(
 
     wait_for_startup_lease(r);
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
 
     /* candidate grants prevote */
     msg_requestvote_t rv;
@@ -2800,7 +2876,9 @@ void TestRaft_candidate_recv_requestvote_may_grant_vote(
     CuAssertTrue(tc, aer.success);
     CuAssertIntEquals(tc, 2, raft_get_current_leader(r));
 
+    __raft_clock += raft_get_election_timeout(r) + 1;
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
 
     /* candidate grants requestvote without assertion failure */
     msg_requestvote_t rv;
@@ -2861,6 +2939,7 @@ void TestRaft_candidate_recv_appendentries_from_same_term_results_in_step_down(
     raft_add_node(r, NULL, 2, 0);
 
     raft_set_current_term(r, 1);
+    wait_for_startup_lease(r);
     raft_become_candidate(r);
     CuAssertTrue(tc, raft_is_candidate(r));
     CuAssertIntEquals(tc, -1, raft_get_voted_for(r));
@@ -2896,7 +2975,9 @@ void TestRaft_prevoted_candidate_recv_appendentries_from_same_term_results_in_st
     raft_add_node(r, NULL, 2, 0);
 
     raft_set_current_term(r, 1);
+    wait_for_startup_lease(r);
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
     CuAssertTrue(tc, 0 == raft_is_follower(r));
     CuAssertIntEquals(tc, 1, raft_get_voted_for(r));
@@ -4481,6 +4562,7 @@ void TestRaft_leader_recv_prevote_responds_without_granting(CuTest * tc)
     wait_for_startup_lease(r);
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
 
     msg_requestvote_response_t rvr;
@@ -4521,8 +4603,10 @@ void TestRaft_leader_recv_prevote_after_election_timeout_responds_without_granti
     /* set a lease maintenance grace so that we won't step down when we call raft_periodic below */
     raft_set_lease_maintenance_grace(r, 1000);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
+    wait_for_startup_lease(r);
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
 
     msg_requestvote_response_t rvr;
@@ -4566,6 +4650,7 @@ void TestRaft_leader_recv_requestvote_responds_without_granting(CuTest * tc)
     wait_for_startup_lease(r);
 
     raft_become_candidate(r);
+    CuAssertTrue(tc, raft_is_candidate(r));
     raft_become_prevoted_candidate(r);
 
     msg_requestvote_response_t rvr;

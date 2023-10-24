@@ -176,6 +176,24 @@ void raft_become_leader(raft_server_t* me_)
     }
 }
 
+/* Might we have granted a lease that hasn't expired to someone other than
+ * except_id? */
+static int raft_lease_granted(raft_server_t* me_, raft_node_id_t except_id, raft_time_t now)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    /* If we have just started, unless for the first time in our life, we might
+     * have granted a lease to someone before that hasn't expired yet. */
+    if (!me->first_start && now - me->start_time < me->election_timeout)
+        return 1;
+
+    if (me->leader_id != -1 && me->leader_id != except_id &&
+        now - me->election_timer < me->election_timeout)
+        return 1;
+
+    return 0;
+}
+
 int raft_count_votes(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -198,7 +216,11 @@ int raft_count_votes(raft_server_t* me_)
 int raft_become_candidate(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    raft_time_t now = me->cb.get_time(me_, me->udata);
     int i;
+
+    if (raft_lease_granted(me_, me->node_id, now))
+        return RAFT_ERR_MIGHT_VIOLATE_LEASE;
 
     __log(me_, NULL, "becoming candidate");
 
@@ -211,7 +233,7 @@ int raft_become_candidate(raft_server_t* me_)
 
     me->leader_id = -1;
     raft_randomize_election_timeout(me_);
-    me->election_timer = me->cb.get_time(me_, me->udata);
+    me->election_timer = now;
 
     for (i = 0; i < me->num_nodes; i++)
     {
@@ -693,12 +715,9 @@ int raft_recv_requestvote(raft_server_t* me_,
     if (!node)
         node = raft_get_node(me_, vr->candidate_id);
 
-    /* Reject request if we have a leader or if we have just started (for we might
-     * have granted a lease before a restart) */
-    if (me->state == RAFT_STATE_LEADER ||
-        (me->leader_id != -1 && me->leader_id != vr->candidate_id &&
-         now - me->election_timer < me->election_timeout) ||
-        (!me->first_start && now - me->start_time < me->election_timeout))
+    /* Reject request if we have a leader or if we might have granted a lease
+     * that hasn't expired to someone other than the candidate */
+    if (me->state == RAFT_STATE_LEADER || raft_lease_granted(me_, vr->candidate_id, now))
     {
         r->vote_granted = 0;
         goto done;
