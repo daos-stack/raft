@@ -1,5 +1,5 @@
 #!/usr/bin/groovy
-/* Copyright (C) 2019-2020 Intel Corporation
+/* Copyright (C) 2019-2023 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,6 +41,7 @@
 //@Library(value="pipeline-lib@your_branch") _
 
 /* groovylint-disable-next-line CompileStatic */
-packageBuildingPipelineDAOS(['make args': '-f Makefile-rpm.mk',
-                             'coverity': 'daos-stack/daos',
-                             'distros': ['centos7', 'el8', 'el9', 'leap15', 'ubuntu20.04']])
+packageBuildingPipelineDAOSTest(['make args': '-f Makefile-rpm.mk',
+                                 'coverity': 'daos-stack/daos',
+                                 'distros': ['el8', 'el9', 'leap15', 'ubuntu20.04'],
+                                 'test-tag': 'pr,-hw'])
