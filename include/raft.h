@@ -469,6 +469,17 @@ typedef raft_time_t (
     void *user_data
     );
 
+/** Callback for getting a pseudo-random double in [0, 1).
+ * @param[in] raft The Raft server making this callback
+ * @param[in] user_data User data that is passed from Raft server
+ * @return The pseudo-random number */
+typedef double (
+*func_get_rand_f
+)   (
+    raft_server_t* raft,
+    void *user_data
+    );
+
 typedef struct
 {
     /** Callback for sending request vote messages */
@@ -536,6 +547,9 @@ typedef struct
 
     /** Callback for getting the current time */
     func_get_time_f get_time;
+
+    /** Callback for getting a pseudo-random number */
+    func_get_rand_f get_rand;
 } raft_cbs_t;
 
 typedef struct

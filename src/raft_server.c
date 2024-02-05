@@ -43,12 +43,24 @@ static void __log(raft_server_t *me_, raft_node_t* node, const char *fmt, ...)
     va_end(args);
 }
 
+static double get_rand(raft_server_t* me_)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    if (me->cb.get_rand == NULL) {
+        int r = rand();
+        if (r == RAND_MAX)
+            r = 0;
+        return (double)r / RAND_MAX;
+    }
+    return me->cb.get_rand(me_, me->udata);
+}
+
 void raft_randomize_election_timeout(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     /* [election_timeout, 2 * election_timeout) */
-    me->election_timeout_rand = me->election_timeout + rand() % me->election_timeout;
+    me->election_timeout_rand = me->election_timeout * (1 + get_rand(me_));
     __log(me_, NULL, "randomize election timeout to %d", me->election_timeout_rand);
 }
 
