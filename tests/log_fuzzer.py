@@ -1,6 +1,6 @@
 import subprocess  # nosec
 import unittest
-from distutils.spawn import find_executable
+from shutil import which
 
 from cffi import FFI
 from hypothesis import given
@@ -28,12 +28,12 @@ class Libraft(object):
         self.lib = ffi.dlopen(library)
 
         def load(fname):
-            gcc = find_executable('gcc')
+            gcc = which('gcc')
             if gcc is None:
                 print("#Error, unable to locate gcc")
                 return 1
             elif not gcc.startswith('/usr/bin') and not gcc.startswith('/bin'):
-                print("#Error, find_executable(gcc)=", gcc)
+                print("#Error, which(gcc)=", gcc)
                 print("#Unable to locate gcc under /bin or /usr/bin.")
                 return 1
             else:
