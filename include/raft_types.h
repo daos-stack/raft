@@ -25,7 +25,7 @@ typedef long int raft_index_t;
 /**
  * Unique node identifier.
  */
-typedef int raft_node_id_t;
+typedef long int raft_node_id_t;
 
 /**
  * Timestamp in milliseconds.

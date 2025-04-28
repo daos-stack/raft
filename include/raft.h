@@ -445,6 +445,16 @@ typedef int (
     raft_index_t entry_idx
     );
 
+/** Callback for getting the node ID from a cfg log entry. */
+typedef raft_node_id_t (
+*func_get_node_id_f
+)   (
+    raft_server_t* raft,
+    void *user_data,
+    raft_entry_t *entry,
+    raft_index_t entry_idx
+    );
+
 /** Callback for being notified of membership changes.
  *
  * Implementing this callback is optional.
@@ -542,7 +552,7 @@ typedef struct
      * affects. This call only applies to configuration change log entries.
      * @note entry_idx may be 0, indicating that the index is unknown.
      * @return the node ID of the node */
-    func_logentry_event_f log_get_node_id;
+    func_get_node_id_f log_get_node_id;
 
     /** Callback for detecting when a non-voting node has sufficient logs. */
     func_node_has_sufficient_logs_f node_has_sufficient_logs;
