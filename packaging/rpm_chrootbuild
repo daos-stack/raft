@@ -2,6 +2,11 @@
 
 set -uex
 
+: "${HTTPS_PROXY:=}"
+: "${REPO_FILE_URL:=}"
+: "${ARCH:=$(arch)}"
+: "${REPOSITORY_NAME:=artifactory}"
+
 cp /etc/mock/"$CHROOT_NAME".cfg mock.cfg
 
 # Enable mock ccache plugin
@@ -11,7 +16,20 @@ config_opts['plugin_conf']['ccache_opts']['dir'] = "%(cache_topdir)s/%(root)s/cc
 EOF
 
 
-if [[ $CHROOT_NAME == *epel-8-x86_64 ]]; then
+# Optionally add a proxy to mock
+if [ -n "$HTTPS_PROXY" ];then
+    yum_proxy="http://${HTTPS_PROXY##*//}"
+    echo "config_opts['https_proxy'] = '$yum_proxy'" >> mock.cfg
+fi
+
+# No proxy for local mirrors
+if [ -n "$REPO_FILE_URL" ]; then
+    direct="${REPO_FILE_URL##*//}"
+    direct="${direct%%/*}"
+    echo "config_opts['no_proxy'] = '${direct}'" >> mock.cfg
+fi
+
+if [[ $CHROOT_NAME == *"epel-8-${ARCH}" ]]; then
     cat <<EOF >> mock.cfg
 config_opts['module_setup_commands'] = [
   ('enable', 'javapackages-tools:201801'),
@@ -21,7 +39,7 @@ EOF
 fi
 
 # Use dnf on CentOS 7
-if [[ $CHROOT_NAME == *epel-7-x86_64 ]]; then
+if [[ $CHROOT_NAME == *"epel-7-$ARCH" ]]; then
     MOCK_OPTIONS="--dnf --no-bootstrap-chroot${MOCK_OPTIONS:+ }$MOCK_OPTIONS"
 fi
 
@@ -61,7 +79,7 @@ if [ -n "${ARTIFACTORY_URL:-}" ] && "$LOCAL_REPOS"; then
             fi
         fi
         curl -sSf "$REPO_FILE_URL"daos_ci-"${CHROOT_NAME%-*}".repo >> mock.cfg
-        repo_adds+=("--enablerepo *-artifactory")
+        repo_adds+=("--enablerepo *-${REPOSITORY_NAME}")
     fi
 fi
 
@@ -109,7 +127,7 @@ if [ -n "$DISTRO_VERSION" ]; then
     releasever_opt=("--config-opts=releasever=$DISTRO_VERSION")
 fi
 
-bs_dir=/scratch/mock/cache/"${CHROOT_NAME}"-bootstrap
+bs_dir=/scratch/mock/cache/"${CHROOT_NAME}"-bootstrap-$(id -u)
 if ls -l "$bs_dir"/root_cache/cache.tar.gz; then
     mkdir -p "/var/cache/mock/${CHROOT_NAME}-bootstrap/"
     flock "$bs_dir" -c "cp -a $bs_dir/root_cache /var/cache/mock/${CHROOT_NAME}-bootstrap"
@@ -127,12 +145,18 @@ if ! eval time mock -r mock.cfg ${repo_dels[*]} ${repo_adds[*]} --no-clean \
 fi
 
 # Save the ccache
-if [ -d /scratch/ ]; then
+if [ -d /scratch/mock ]; then
     mkdir -p "$bs_dir"/
-    flock "$bs_dir" -c "tar -czf $bs_dir/ccache-$CHROOT_NAME-$PACKAGE.tar.gz /var/cache/mock/${CHROOT_NAME}/ccache"
+    if ! flock "$bs_dir" -c "tar -czf $bs_dir/ccache-$CHROOT_NAME-$PACKAGE.tar.gz /var/cache/mock/${CHROOT_NAME}/ccache"; then
+        echo "Failed to save ccache.  Plowing onward."
+        echo "I am $(id)"
+    fi
     if ls -l /var/cache/mock/"${CHROOT_NAME}"-bootstrap/root_cache/cache.tar.gz; then
         if ! cmp /var/cache/mock/"${CHROOT_NAME}"-bootstrap/root_cache/cache.tar.gz "$bs_dir"/root_cache/cache.tar.gz; then
-            flock "$bs_dir" -c "cp -a /var/cache/mock/${CHROOT_NAME}-bootstrap/root_cache $bs_dir/"
+            if ! flock "$bs_dir" -c "cp -a /var/cache/mock/${CHROOT_NAME}-bootstrap/root_cache $bs_dir/"; then
+                echo "Failed to save root_cache.  Plowing onward."
+                echo "I am $(id)"
+            fi
         fi
     fi
 fi
