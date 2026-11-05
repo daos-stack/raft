@@ -53,7 +53,7 @@ $(BUILDDIR)/libraft.a: $(OBJECTS)
 TEST_SRCS = src/raft_server.c src/raft_server_properties.c src/raft_log.c src/raft_node.c \
             $(TEST_DIR)/main_test.c $(wildcard $(TEST_DIR)/test_*.c) \
             $(TEST_DIR)/mock_send_functions.c $(TEST_DIR)/CuTest.c $(LLQUEUE_DIR)/linked_list_queue.c
-TEST_OBJS = $(patsubst %.c,$(BUILDDIR)/test/%.o,$(TEST_SRCS))
+TEST_OBJS = $(addprefix $(BUILDDIR)/test-,$(notdir $(TEST_SRCS:.c=.o)))
 HEADERS = $(wildcard include/*.h $(TEST_DIR)/*.h $(LLQUEUE_DIR)/*.h)
 
 # With BUILDDIR=. the file itself is tests_main, so the alias would point at itself
@@ -62,8 +62,13 @@ ifneq ($(BUILDDIR),.)
 tests_main: $(BUILDDIR)/tests_main
 endif
 
-$(BUILDDIR)/test/%.o: %.c $(HEADERS) $(MAKEFILE_LIST)
-	@mkdir -p $(@D)
+$(BUILDDIR)/test-%.o: src/%.c $(HEADERS) $(MAKEFILE_LIST) | $(BUILDDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILDDIR)/test-%.o: $(TEST_DIR)/%.c $(HEADERS) $(MAKEFILE_LIST) | $(BUILDDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILDDIR)/test-%.o: $(LLQUEUE_DIR)/%.c $(HEADERS) $(MAKEFILE_LIST) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(BUILDDIR)/tests_main: $(TEST_OBJS)
@@ -93,8 +98,7 @@ do_infer:
 	infer -- make static
 
 clean:
-	@rm -rf $(BUILDDIR)/test; \
-	rm -f $(TEST_DIR)/main_test.c $(BUILDDIR)/*.o $(GCOV_OUTPUT); \
+	@rm -f $(TEST_DIR)/main_test.c $(BUILDDIR)/*.o $(GCOV_OUTPUT); \
 	if [ -f "$(BUILDDIR)/libraft.$(SHAREDEXT)" ]; then rm $(BUILDDIR)/libraft.$(SHAREDEXT); fi;\
 	if [ -f $(BUILDDIR)/libraft.a ]; then rm $(BUILDDIR)/libraft.a; fi;\
 	if [ -f $(BUILDDIR)/tests_main ]; then rm $(BUILDDIR)/tests_main; fi;
