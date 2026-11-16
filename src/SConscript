@@ -9,6 +9,7 @@ test_main = env.Command('tests_main', libraft, 'make -C src/rdb/raft/ BUILDDIR=%
 # make to build them will bail out if they don't actually need rebuilding
 AlwaysBuild(libraft)
 AlwaysBuild(test_main)
+Precious(libraft, test_main)
 
 def CleanAction(env, action):
     if env.GetOption('clean'):

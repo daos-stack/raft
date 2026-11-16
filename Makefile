@@ -1,7 +1,6 @@
 CONTRIB_DIR = contrib
-TEST_DIR = ./tests
+TEST_DIR = tests
 LLQUEUE_DIR = $(CONTRIB_DIR)/CLinkedListQueue
-VPATH = src
 BUILDDIR ?= .
 
 GCOV_OUTPUT = $(BUILDDIR)/*.gcda $(BUILDDIR)/*.gcno $(BUILDDIR)/*.gcov
@@ -33,7 +32,7 @@ all: static shared
 $(BUILDDIR):
 	mkdir -p $@
 
-$(BUILDDIR)/%.o: %.c $(wildcard include/*.h) | $(BUILDDIR)
+$(BUILDDIR)/%.o: src/%.c $(wildcard include/*.h) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(TEST_DIR)/main_test.c: $(TEST_DIR)/test_*.c
@@ -44,12 +43,36 @@ shared: $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDFLAGS) $(CFLAGS) -fPIC $(SHAREDFLAGS) -o $(BUILDDIR)/libraft.$(SHAREDEXT)
 
 .PHONY: static
-static: $(OBJECTS)
-	ar -r $(BUILDDIR)/libraft.a $(OBJECTS)
+static: $(BUILDDIR)/libraft.a
+
+$(BUILDDIR)/libraft.a: $(OBJECTS)
+	rm -f $@
+	ar -r $@ $(OBJECTS)
 
 
-tests_main: src/raft_server.c src/raft_server_properties.c src/raft_log.c src/raft_node.c $(TEST_DIR)/main_test.c $(TEST_DIR)/test_*.c $(TEST_DIR)/mock_send_functions.c $(TEST_DIR)/CuTest.c $(LLQUEUE_DIR)/linked_list_queue.c
-	$(CC) $(CFLAGS) -o $(BUILDDIR)/$@ $^
+TEST_SRCS = src/raft_server.c src/raft_server_properties.c src/raft_log.c src/raft_node.c \
+            $(TEST_DIR)/main_test.c $(wildcard $(TEST_DIR)/test_*.c) \
+            $(TEST_DIR)/mock_send_functions.c $(TEST_DIR)/CuTest.c $(LLQUEUE_DIR)/linked_list_queue.c
+TEST_OBJS = $(addprefix $(BUILDDIR)/test-,$(notdir $(TEST_SRCS:.c=.o)))
+HEADERS = $(wildcard include/*.h $(TEST_DIR)/*.h $(LLQUEUE_DIR)/*.h)
+
+# With BUILDDIR=. the file itself is tests_main, so the alias would point at itself
+ifneq ($(BUILDDIR),.)
+.PHONY: tests_main
+tests_main: $(BUILDDIR)/tests_main
+endif
+
+$(BUILDDIR)/test-%.o: src/%.c $(HEADERS) $(MAKEFILE_LIST) | $(BUILDDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILDDIR)/test-%.o: $(TEST_DIR)/%.c $(HEADERS) $(MAKEFILE_LIST) | $(BUILDDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILDDIR)/test-%.o: $(LLQUEUE_DIR)/%.c $(HEADERS) $(MAKEFILE_LIST) | $(BUILDDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILDDIR)/tests_main: $(TEST_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS)
 
 .PHONY: tests
 tests: tests_main
